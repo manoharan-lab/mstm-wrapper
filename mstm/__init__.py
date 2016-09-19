@@ -74,71 +74,66 @@ def calc_scat_matrix(target, incident, theta, phi, delete=True):
         corresponging wavelength
     """
     
-    # print important things to temporary .inp file   
+    # put input files in a temp directory   
     temp_dir = tempfile.mkdtemp()
     current_directory = os.getcwd()
     path, _ = os.path.split(os.path.abspath(__file__))
     #temp_dir = path # comment after debugging
-    mstmlocation = os.path.join(path, 'mstm.exe')
+    mstmlocation = os.path.join(path, 'mstm_ubuntu.exe')
     templatelocation = os.path.join(path, 'input_template.txt')
     shutil.copy(mstmlocation, temp_dir)
     shutil.copy(templatelocation, temp_dir)
     os.chdir(temp_dir)
     
     # make angles file
-    angfile = os.path.join(temp_dir, 'angles.dat')
+    angfile_name = 'angles.dat'
+    angfile = os.path.join(temp_dir, angfile_name)
     thetatot = np.repeat(theta, len(phi))
     phitot = np.tile(phi, len(theta))
     angs = np.vstack((thetatot, phitot))
     angs = angs.transpose()
     np.savetxt(angfile, angs, '%5.2f')
     
-    scat_mat_data = np.zeros([len(thetatot), 6 ,len(incident.wavelength)])
+    # prepare input file for fortran code
     OutputName = 'mstm_out.dat'
     length_scl_factor = 2*np.pi/incident.wavelength
     polarization_angle = np.arctan2(incident.jones_vec[1],incident.jones_vec[0])
-    parameters = (target.num_spheres, target.index_spheres, target.index_matrix, length_scl_factor, polarization_angle)
+    parameters = (target.num_spheres, target.index_spheres, target.index_matrix, float(length_scl_factor), polarization_angle)
     radb, rade = separate_exponent(target.radii) #have to make sure we don't print any e's into the text file.
     xb, xe = separate_exponent(target.x-np.mean(target.x))
     yb, ye = separate_exponent(target.y-np.mean(target.y))
     zb, ze = separate_exponent(-(target.z-np.mean(target.z)))
-    g = '{0:20} {1:20} {2:20} {3:20}'.format(str(radb)+'d'+str(rade), str(xb)+'d'+str(xe), str(yb)+'d'+str(ye), str(zb)+'d'+str(ze))+'\n'
+    g = '{0:20} {1:20} {2:20} {3:20}'.format(str(radb[0])+'d'+str(int(rade[0])), str(xb[0])+'d'+str(int(xe[0])), str(yb[0])+'d'+str(int(ye[0])), str(zb[0])+'d'+str(int(ze[0]))+'\n')
     with open(templatelocation, 'r') as InFile:
         InF = InFile.read()				
-    InF = InF.format(parameters, g, OutputName, AngfileName, len(angs) )
+    InF = InF.format(parameters, g, OutputName, angfile_name, len(angs) )
     InputFile = file(os.path.join(temp_dir, 'mstm.inp'), 'w')
     InputFile.write(InF)
     InputFile.close()
     
-    # run MSTM
-    cmd = ['./mstm.exe', 'mstm.inp']
+    # run MSTM fortran executable 
+    cmd = ['./mstm_ubuntu.exe', 'mstm.inp']
     subprocess.check_call(cmd, cwd=temp_dir)
     
     # Read scattering matrix from results file
+    scat_mat_data = np.zeros([len(incident.wavelength), len(thetatot), 18])    
     result_file = glob.glob(os.path.join(temp_dir,'mstm_out.dat'))[0]
-    mstm_result = iter(open(result_file))
-    S11 = []
-    S12 = []
-    S13 = []
-    S14 = []
-    S11col = -1
-    for line in mstm_result:
-        l = line.split()
-        if '11' in l:
-            S11col = l.index('11')
-            line = next(mstm_result)
-            l = line.split()
-        if len(l)>0 and S11col>-1:
-            if 'matrix' in l:
-                break
-            if '************' in l[0]:
-                break
-            S11.append(float(l[S11col]))
-            S12.append(float(l[S11col + 1]))
-            S13.append(float(l[S11col + 2]))
-            S14.append(float(l[S11col + 3]))
-    Srow1 = [S11, S12, S13, S14]
-    scat_mat_data[wl] = [Srow1, theta, phi] # fix this line, replace with numpy array       
+    with open(result_file,"r") as myfile:
+        mstm_result = myfile.readlines()    
+    mstm_result = [ln.replace('\n','') for ln in mstm_result]
+    mstm_result = [ln.replace('\t','') for ln in mstm_result]
+    mstm_result = filter(None, mstm_result)    
+    scat_mat_el_row = [i for i, j in enumerate(mstm_result) if j == ' scattering matrix elements']
+    for m in range(len(scat_mat_el_row)):
+        smdata = mstm_result[scat_mat_el_row[m] + 2 : scat_mat_el_row[m] + 2 + len(angs)]
+        for i in range(len(angs)):
+            a = smdata[i].split(' ')
+            a = filter(None, a)
+            smdata[i] = [float(j) for j in a]
+            print smdata[i]
+        scat_mat_data[m][:][:] = smdata
+
+    # delete temp files     
     os.chdir(current_directory)
     if delete:
         shutil.rmtree(temp_dir)
@@ -164,44 +159,39 @@ def calc_intensity(target, incident, theta, phi):
     numpy array: 
         Intensity
     """
-    scat_mat_dict = calc_scat_matrix(target, incident, theta, phi)
-    Is_dict = dict.fromkeys(incident.wavelength)
-    for wl in incident.wavelength:
-        Is = []
-        Srow1 = scat_mat_dict[wl][0]
-        th = scat_mat_dict[wl][1]
-        prefactor = 1/((2*np.pi*target.index_matrix/wl)**2)
-        #calculate Is using scattering matrix (need to fix this part since theta now a vector)
-        for i in range(0,len(th)):
-            Is.append((Srow1[0][i]*incident.stokes_vec[0] + Srow1[1][i]*incident.stokes_vec[1] + Srow1[2][i]*incident.stokes_vec[2] + Srow1[3][i]*incident.stokes_vec[3])*prefactor*np.sin(th[i]*np.pi/180))
-        Is_dict[wl] = Is
-    return Is_dict
+    scat_mat_data = calc_scat_matrix(target, incident, theta, phi)
+    intensity_data = np.zeros([len(incident.wavelength), len(theta)*len(phi), 3])
+    prefactor = 1/((2*np.pi*target.index_matrix/incident.wavelength)**2)
+    intensity_data[:][:][0] = scat_mat_data[:][:][0]
+    intensity_data[:][:][1] = scat_mat_data[:][:][1]
+    intensity_data[:][:][2] = prefactor*(scat_mat_data[:][:][2]*incident.stokes_vec[0] + scat_mat_data[:][:][3]*incident.stokes_vec[1] + scat_mat_data[:][:][4]*incident.stokes_vec[2] + scat_mat_data[:][:][5]*incident.stokes_vec[3])
+    return intensity_data
  
 class Target:
     def __init__(self, x, y, z, radii, index_matrix, index_spheres, num_spheres):
-    """ 
-    Initialize object of the Target class. Target objects represent the sphere
-    assemblies that scatter light
+        """ 
+        Initialize object of the Target class. Target objects represent the sphere
+        assemblies that scatter light
+        
+        Parameters
+        ----------
+        x: x-coordinates of spheres in assembly
+        y: y-coordinates of spheres in assembly
+        z: z-coordinates of spheres in assembly
+        radii: radii of spheres in assembly
+        index_matrix: refractive index of medium surrounding spheres
+        index_spheres: refractive index of spheres
+        num_spheres: number of spheres in assembly
     
-    Parameters
-    ----------
-    x: x-coordinates of spheres in assembly
-    y: y-coordinates of spheres in assembly
-    z: z-coordinates of spheres in assembly
-    radii: radii of spheres in assembly
-    index_matrix: refractive index of medium surrounding spheres
-    index_spheres: refractive index of spheres
-    num_spheres: number of spheres in assembly
-
-    Returns
-    -------
-    Target object        
-    
-    Notes
-    -----
-    x, y, z, and radii must be in same units, and must also match units of
-    wavelength of incident light, which is defined in Incident class
-    """
+        Returns
+        -------
+        Target object        
+        
+        Notes
+        -----
+        x, y, z, and radii must be in same units, and must also match units of
+        wavelength of incident light, which is defined in Incident class 
+        """
         self.x = x
         self.y = y
         self.z = z
@@ -212,31 +202,30 @@ class Target:
 
 class Incident:
     def __init__(self, jones_vec, stokes_vec, wavelength):
-    """ 
-    Initialize object of the Incident class. Incident objects represent the
-    incident light which is scattered from sphere assemblies. 
+        """ 
+        Initialize object of the Incident class. Incident objects represent the
+        incident light which is scattered from sphere assemblies. 
+        
+        Parameters
+        ----------
+        jones_vec: Jones vector of the incident light
+        stokes_vec: Stokes vector of the incident light
+        wavelength: wavelength of the incident light
     
-    Parameters
-    ----------
-    jones_vec: Jones vector of the incident light
-    stokes_vec: Stokes vector of the incident light
-    wavelength: wavelength of the incident light
-
-    Returns
-    -------
-    Incident object        
-    
-    Notes
-    -----
-    wavelength units must match those of x, y, z, and radii defined in the
-    Target class
-    """
+        Returns
+        -------
+        Incident object        
+        
+        Notes
+        -----
+        wavelength units must match those of x, y, z, and radii defined in the
+        Target class
+        """
         self.jones_vec = jones_vec # jones vector
         self.stokes_vec = stokes_vec # stokes vector
         self.wavelength = wavelength # um
         
 if __name__ == "__main__":
     t = Target([1],[1],[0],[.125],1.4,1,1)
-    inci = Incident((1,0),[1,1,0,0],[0.4])
-    scat_mat_dictionary = calc_scat_matrix(t, inci, 0, 100, 0, 0)
-    Is = calc_intensity(t, inci, 0, 5, 0, 0)
+    inci = Incident((1,0),[1,1,0,0],np.array([0.4]))
+    scat_mat_dat = calc_scat_matrix(t, inci, np.arange(0,11,1), [0])
