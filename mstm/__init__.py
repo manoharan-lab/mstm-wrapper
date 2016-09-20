@@ -44,8 +44,19 @@ import numpy as np
 
 def separate_exponent(num):
     """
-    ADD DOCSTRING
+    Separate the base and exponents of a number written in scientific notation.
+
+    Parameters
+    ----------
+    num: numpy array containing numbers to be separated into base and exponent
+
+    Returns
+    -------
+    b:
+    e: int, 
+    
     """
+    
     b, e = num/10**(np.floor(np.log10(np.abs(num)))), np.floor(np.log10(np.abs(num)))
     b = np.nan_to_num(b)
     e[np.isneginf(e)] = 0
@@ -53,7 +64,7 @@ def separate_exponent(num):
     return b, e
 
 
-def calc_scat_matrix(target, incident, theta, phi, delete=True):
+def calc_scat_matrix(target, incident, theta, phi, delete=False):
     """
     Calculate the first row of the mueller scattering matrix as a function of
     theta, phi, and wavelength.
@@ -176,14 +187,14 @@ def calc_intensity(target, incident, theta, phi):
         intensity_data
     """
     scat_mat_data = calc_scat_matrix(target, incident, theta, phi)
-    intensity_data = np.zeros([len(incident.wavelength), len(theta)*len(phi), 3])
-    prefactor = 1/((2*np.pi*target.index_matrix/incident.wavelength)**2)
-    intensity_data[:][:][0] = scat_mat_data[:][:][0]
-    intensity_data[:][:][1] = scat_mat_data[:][:][1]
-    intensity_data[:][:][2] = prefactor*(scat_mat_data[:][:][2]*incident.stokes_vec[0] +
-                                         scat_mat_data[:][:][3]*incident.stokes_vec[1] +
-                                         scat_mat_data[:][:][4]*incident.stokes_vec[2] +
-                                         scat_mat_data[:][:][5]*incident.stokes_vec[3])
+    intensity_data = np.zeros([len(incident.length_scl_factor), len(theta)*len(phi), 3])    
+    prefactor = 1/((2*np.pi*target.index_matrix/(2*np.pi/incident.length_scl_factor)**2))
+    intensity_data[:,:,0] = scat_mat_data[:,:,0]
+    intensity_data[:,:,1] = scat_mat_data[:,:,1]
+    intensity_data[:,:,2] = prefactor[:,np.newaxis]*(scat_mat_data[:,:,2]*incident.stokes_vec[0] +
+                                         scat_mat_data[:,:,3]*incident.stokes_vec[1] +
+                                         scat_mat_data[:,:,4]*incident.stokes_vec[2] +
+                                         scat_mat_data[:,:,5]*incident.stokes_vec[3])
     return intensity_data
 
 class Target:
@@ -253,15 +264,15 @@ class Incident:
 if __name__ == "__main__":
     t = Target(np.array([1, 1]), np.array([1, 1]), np.array([0, 1]),
                np.array([0.125, 0.125]), 1.4, 1, 2)
-    inci = Incident((1, 0), [1, 1, 0, 0], np.array([13.0,14.0,15.0]))
-    scat_mat_dat = calc_scat_matrix(t, inci, np.arange(0, 11, 1), [0])
+    inci = Incident((1, 0), [1, 1, 0, 0], np.array([13.0,14.0,15.0,16.0]))
+    scat_mat_dat = calc_scat_matrix(t, inci, np.arange(0, 11, 1), np.array([0,1]))
+    intensity_dat = calc_intensity(t, inci, np.arange(0, 11, 1), np.array([0,1]))
 
 # todo
 
-# - test and debig intensity calc function
 # - put test in separate file
 # - update docstrings
-# - integrate with original fortran code
+# - switch to original fortran code
 
 
 
