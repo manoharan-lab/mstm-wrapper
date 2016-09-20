@@ -86,7 +86,7 @@ near_field_plane_coord
 near_field_plane_position
 0.0d0
 near_field_plane_vertices
-10.0d0,10.0d0
+-10.0d0,-10.0d0,10.0d0,10.0d0
 spacial_step_size
 0.5d0
 polarization_angle_deg
@@ -105,7 +105,7 @@ t_matrix_convergence_epsilon
 1.d-7
 sphere_sizes_and_positions
 {1}
-multipleRun
+multiple_run
 length_scale_factor
 {5[0]} {5[1]} {5[2]}
 end_of_options

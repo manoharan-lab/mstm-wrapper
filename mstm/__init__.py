@@ -100,10 +100,13 @@ def calc_scat_matrix(target, incident, theta, phi, delete=True):
 
     # prepare input file for fortran code
     output_name = 'mstm_out.dat'
-    length_scl_factor = 2*np.pi/incident.wavelength
-    lsf_start = length_scl_factor[0]
-    lsf_end = length_scl_factor[len(length_scl_factor)-1]
-    length_scl_factor_info = [lsf_start, lsf_end, lsf_end-lsf_start]
+    lsf_start = incident.length_scl_factor[0]
+    lsf_end = incident.length_scl_factor[len(incident.length_scl_factor)-1]
+    if len(incident.length_scl_factor)==1:
+        lsf_delta = 0
+    if len(incident.length_scl_factor)>1:
+        lsf_delta = incident.length_scl_factor[1]-incident.length_scl_factor[0]
+    length_scl_factor_info = [lsf_start, lsf_end, lsf_delta]
     polarization_angle = np.arctan2(incident.jones_vec[1], incident.jones_vec[0])*180/np.pi
     parameters = (target.num_spheres, target.index_spheres, target.index_matrix, polarization_angle)
 
@@ -130,7 +133,7 @@ def calc_scat_matrix(target, incident, theta, phi, delete=True):
     subprocess.check_call(cmd, cwd=temp_dir)
 
     # Read scattering matrix from results file
-    scat_mat_data = np.zeros([len(incident.wavelength), len(thetatot), 18])
+    scat_mat_data = np.zeros([len(incident.length_scl_factor), len(thetatot), 18])
     result_file = glob.glob(os.path.join(temp_dir, 'mstm_out.dat'))[0]
     with open(result_file, "r") as myfile:
         mstm_result = myfile.readlines()
@@ -223,7 +226,7 @@ class Incident:
     """
     ADD CLASS DOCSTRING
     """
-    def __init__(self, jones_vec, stokes_vec, wavelength):
+    def __init__(self, jones_vec, stokes_vec, length_scl_factor):
         """
         Initialize object of the Incident class. Incident objects represent the
         incident light which is scattered from sphere assemblies.
@@ -232,7 +235,7 @@ class Incident:
         ----------
         jones_vec: Jones vector of the incident light
         stokes_vec: Stokes vector of the incident light
-        wavelength: numpy array of wavelength of the incident light
+        length_scl_factor: numpy array of 2*pi/wavelength of the incident light
 
         Returns
         -------
@@ -245,21 +248,20 @@ class Incident:
         """
         self.jones_vec = jones_vec # jones vector
         self.stokes_vec = stokes_vec # stokes vector
-        self.wavelength = wavelength # um
+        self.length_scl_factor = length_scl_factor # um
 
 if __name__ == "__main__":
     t = Target(np.array([1, 1]), np.array([1, 1]), np.array([0, 1]),
                np.array([0.125, 0.125]), 1.4, 1, 2)
-    # wavelengths must be in decreasing order
-    inci = Incident((1, 0), [1, 1, 0, 0], np.array([0.41, 0.4, 0.39]))
+    inci = Incident((1, 0), [1, 1, 0, 0], np.array([13.0,14.0,15.0]))
     scat_mat_dat = calc_scat_matrix(t, inci, np.arange(0, 11, 1), [0])
 
 # todo
-# - make changes so that wavelengths do not have to be in decreasing order
-# - figure out why ending wavelength is not included in calculations
+
 # - test and debig intensity calc function
 # - put test in separate file
 # - update docstrings
+# - integrate with original fortran code
 
 
 
