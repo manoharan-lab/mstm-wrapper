@@ -52,9 +52,8 @@ def separate_exponent(num):
 
     Returns
     -------
-    b:
-    e: int, 
-    
+    b: float, base of input number
+    e: int, exponent of input number
     """
     
     b, e = num/10**(np.floor(np.log10(np.abs(num)))), np.floor(np.log10(np.abs(num)))
@@ -152,12 +151,22 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
     mstm_result = [line.replace('\t', '') for line in mstm_result]
     mstm_result = filter(None, mstm_result)
     scat_mat_el_row = [i for i, j in enumerate(mstm_result) if j == ' scattering matrix elements']
+    qsca_row = [i for i, j in enumerate(mstm_result) if j == ' unpolarized total ext, abs, scat efficiencies, w.r.t. xv, and asym. parm']
+    
+    if polarization_angle == 0:
+        qsca_line_shift = 3
+    else :
+        qsca_line_shift = 5
     for m in range(len(scat_mat_el_row)):
         smdata = mstm_result[scat_mat_el_row[m] + 2 : scat_mat_el_row[m] + 2 + len(angs)]
+        qscanums = mstm_result[qsca_row[m]+ qsca_line_shift]
+        qsca = qscanums.split(' ')
+        qsca = filter(None, qsca)
+        qsca = float(qsca[2])
         for i in range(len(angs)):
             a = smdata[i].split(' ')
             a = filter(None, a)
-            smdata[i] = [float(j) for j in a]
+            smdata[i] = [float(j)*qsca/8 for j in a]
         scat_mat_data[m][:][:] = smdata
 
     # delete temp files
@@ -199,7 +208,7 @@ def calc_intensity(target, incident, theta, phi):
 
 class Target:
     """
-    ADD CLASS DOCSTRING
+    Class to contain data describing the sphere assemblies that scatter the light
     """
     def __init__(self, x, y, z, radii, index_matrix, index_spheres, num_spheres):
         """
@@ -235,7 +244,7 @@ class Target:
 
 class Incident:
     """
-    ADD CLASS DOCSTRING
+    Class to contain data describing the light incident on the target
     """
     def __init__(self, jones_vec, stokes_vec, length_scl_factor):
         """
@@ -271,8 +280,6 @@ if __name__ == "__main__":
 # todo
 
 # - put test in separate file
-# - update docstrings
-# - switch to original fortran code
 
 
 
