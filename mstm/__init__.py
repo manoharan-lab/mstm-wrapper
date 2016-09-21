@@ -41,6 +41,8 @@ import os
 import shutil
 import numpy as np
 
+# change to match the filename of your executable
+MSTM_EXE = 'mstm.exe'
 
 def separate_exponent(num):
     """
@@ -55,7 +57,7 @@ def separate_exponent(num):
     b: float, base of input number
     e: int, exponent of input number
     """
-    
+
     b, e = num/10**(np.floor(np.log10(np.abs(num)))), np.floor(np.log10(np.abs(num)))
     b = np.nan_to_num(b)
     e[np.isneginf(e)] = 0
@@ -93,7 +95,7 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
     current_directory = os.getcwd()
     path, _ = os.path.split(os.path.abspath(__file__))
     #temp_dir = path # comment after debugging
-    mstmlocation = os.path.join(path, 'mstm_ubuntu.exe')
+    mstmlocation = os.path.join(path, MSTM_EXE)
     templatelocation = os.path.join(path, 'input_template.txt')
     shutil.copy(mstmlocation, temp_dir)
     shutil.copy(templatelocation, temp_dir)
@@ -134,12 +136,12 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
     with open(templatelocation, 'r') as infile:
         InF = infile.read()
     InF = InF.format(parameters, g, output_name, angfile_name, len(angs), length_scl_factor_info)
-    input_file = file(os.path.join(temp_dir, 'mstm.inp'), 'w')
+    input_file = open(os.path.join(temp_dir, 'mstm.inp'), 'w')
     input_file.write(InF)
     input_file.close()
 
     # run MSTM fortran executable
-    cmd = ['./mstm_ubuntu.exe', 'mstm.inp']
+    cmd = ['./'+MSTM_EXE, 'mstm.inp']
     subprocess.check_call(cmd, cwd=temp_dir)
 
     # Read scattering matrix from results file
@@ -149,10 +151,10 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
         mstm_result = myfile.readlines()
     mstm_result = [line.replace('\n', '') for line in mstm_result]
     mstm_result = [line.replace('\t', '') for line in mstm_result]
-    mstm_result = filter(None, mstm_result)
+    mstm_result = [line for line in mstm_result if line]
     scat_mat_el_row = [i for i, j in enumerate(mstm_result) if j == ' scattering matrix elements']
     qsca_row = [i for i, j in enumerate(mstm_result) if j == ' unpolarized total ext, abs, scat efficiencies, w.r.t. xv, and asym. parm']
-    
+
     if polarization_angle == 0:
         qsca_line_shift = 3
     else :
@@ -161,7 +163,7 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
         smdata = mstm_result[scat_mat_el_row[m] + 2 : scat_mat_el_row[m] + 2 + len(angs)]
         qscanums = mstm_result[qsca_row[m]+ qsca_line_shift]
         qsca = qscanums.split(' ')
-        qsca = filter(None, qsca)
+        qsca = [item for item in qsca if item]
         qsca = float(qsca[2])
         for i in range(len(angs)):
             a = smdata[i].split(' ')
@@ -196,7 +198,7 @@ def calc_intensity(target, incident, theta, phi):
         intensity_data
     """
     scat_mat_data = calc_scat_matrix(target, incident, theta, phi)
-    intensity_data = np.zeros([len(incident.length_scl_factor), len(theta)*len(phi), 3])    
+    intensity_data = np.zeros([len(incident.length_scl_factor), len(theta)*len(phi), 3])
     prefactor = 1/((2*np.pi*target.index_matrix/(2*np.pi/incident.length_scl_factor)**2))
     intensity_data[:,:,0] = scat_mat_data[:,:,0]
     intensity_data[:,:,1] = scat_mat_data[:,:,1]
