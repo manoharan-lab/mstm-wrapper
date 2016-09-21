@@ -42,7 +42,7 @@ import shutil
 import numpy as np
 
 # change to match the filename of your executable
-MSTM_EXE = 'mstm.exe'
+MSTM_EXE = 'mstm_ubuntu.exe'
 
 def separate_exponent(num):
     """
@@ -167,8 +167,11 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
         qsca = float(qsca[2])
         for i in range(len(angs)):
             a = smdata[i].split(' ')
-            a = filter(None, a)
-            smdata[i] = [float(j)*qsca/8 for j in a]
+            a = [item for item in a if item]
+            smdata[i] = [float(j) for j in a]
+            smdata[i] = np.array(smdata[i])*qsca/8
+            smdata[i][0] = smdata[i][0]*8/qsca
+            smdata[i][1] = smdata[i][1]*8/qsca
         scat_mat_data[m][:][:] = smdata
 
     # delete temp files
@@ -199,13 +202,13 @@ def calc_intensity(target, incident, theta, phi):
     """
     scat_mat_data = calc_scat_matrix(target, incident, theta, phi)
     intensity_data = np.zeros([len(incident.length_scl_factor), len(theta)*len(phi), 3])
-    prefactor = 1/((2*np.pi*target.index_matrix/(2*np.pi/incident.length_scl_factor)**2))
+    prefactor = 1.0/((target.index_matrix*incident.length_scl_factor)**2)
     intensity_data[:,:,0] = scat_mat_data[:,:,0]
     intensity_data[:,:,1] = scat_mat_data[:,:,1]
     intensity_data[:,:,2] = prefactor[:,np.newaxis]*(scat_mat_data[:,:,2]*incident.stokes_vec[0] +
                                          scat_mat_data[:,:,3]*incident.stokes_vec[1] +
                                          scat_mat_data[:,:,4]*incident.stokes_vec[2] +
-                                         scat_mat_data[:,:,5]*incident.stokes_vec[3])
+                                         scat_mat_data[:,:,5]*incident.stokes_vec[3])                                  
     return intensity_data
 
 class Target:
@@ -270,18 +273,8 @@ class Incident:
         """
         self.jones_vec = jones_vec # jones vector
         self.stokes_vec = stokes_vec # stokes vector
-        self.length_scl_factor = length_scl_factor # um
+        self.length_scl_factor = length_scl_factor
 
-if __name__ == "__main__":
-    t = Target(np.array([1, 1]), np.array([1, 1]), np.array([0, 1]),
-               np.array([0.125, 0.125]), 1.4, 1, 2)
-    inci = Incident((1, 0), [1, 1, 0, 0], np.array([13.0,14.0,15.0,16.0]))
-    scat_mat_dat = calc_scat_matrix(t, inci, np.arange(0, 11, 1), np.array([0,1]))
-    intensity_dat = calc_intensity(t, inci, np.arange(0, 11, 1), np.array([0,1]))
-
-# todo
-
-# - put test in separate file
 
 
 
