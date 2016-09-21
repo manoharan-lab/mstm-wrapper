@@ -268,18 +268,8 @@ class Incident:
         """
         self.jones_vec = jones_vec # jones vector
         self.stokes_vec = stokes_vec # stokes vector
-        self.length_scl_factor = length_scl_factor # um
+        self.length_scl_factor = length_scl_factor
 
-if __name__ == "__main__":
-    t = Target(np.array([1, 1]), np.array([1, 1]), np.array([0, 1]),
-               np.array([0.125, 0.125]), 1.4, 1, 2)
-    inci = Incident((1, 0), [1, 1, 0, 0], np.array([13.0,14.0,15.0,16.0]))
-    scat_mat_dat = calc_scat_matrix(t, inci, np.arange(0, 11, 1), np.array([0,1]))
-    intensity_dat = calc_intensity(t, inci, np.arange(0, 11, 1), np.array([0,1]))
-
-# todo
-
-# - put test in separate file
 
 
 
