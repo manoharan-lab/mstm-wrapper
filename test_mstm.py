@@ -39,8 +39,8 @@ from matplotlib import pyplot as plt
 
 # set paramaters
 num_spheres = 1
-xpos = np.array([1])
-ypos = np.array([1])
+xpos = np.array([0])
+ypos = np.array([0])
 zpos = np.array([0])
 radii = np.array([0.125])
 n_matrix = 1.0
@@ -71,7 +71,7 @@ plt.plot(2*np.pi/length_scl_factor, cross_section1, 2*np.pi/length_scl_factor, c
 plt.legend(['1,0','0,1','averaged'])
 plt.xlabel('Wavelength (um)')
 plt.xlim([0.4,0.7])
-plt.ylim([0,0.0026])
+plt.ylim([0,0.005])
 plt.ylabel('Cross Section (um^2)')
 plt.title('backscattering Cross Section')
 
