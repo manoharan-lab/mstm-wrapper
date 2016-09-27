@@ -42,7 +42,7 @@ import shutil
 import numpy as np
 
 # change to match the filename of your executable
-MSTM_EXE = 'mstm_ubuntu.exe'
+MSTM_EXE = 'mstm.exe'
 
 def separate_exponent(num):
     """
@@ -57,12 +57,16 @@ def separate_exponent(num):
     b: float, base of input number
     e: int, exponent of input number
     """
-
     b, e = num/10**(np.floor(np.log10(np.abs(num)))), np.floor(np.log10(np.abs(num)))
     b = np.nan_to_num(b)
     e[np.isneginf(e)] = 0
     e = e.astype(int)
     return b, e
+    
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]    
 
 
 def calc_scat_matrix(target, incident, theta, phi, delete=False):
@@ -210,6 +214,46 @@ def calc_intensity(target, incident, theta, phi):
                                          scat_mat_data[:,:,4]*incident.stokes_vec[2] +
                                          scat_mat_data[:,:,5]*incident.stokes_vec[3])                                  
     return intensity_data
+    
+def calc_cross_section(target, incident, theta, phi):
+    """
+    Calculate the cross section from wavelength. 
+    If theta = 0-180 and phi = 0-360, the cross section calculated is the total cross section
+    If theta = 90-180 and phi = 0-360, the cross section caclulated is the backscattering cross section,
+    where the backscattering cross section is proportional to the reflectance
+
+    Parameters
+    ----------
+    target: an object of the Target class
+    incident: an object of the Incident class
+    theta: numpy array of values for the polar scattering angle theta for scattering
+        matrix computations, in degrees (must be 0-180)
+    phi: numpy array of values for the azimuth angle theta for scattering matrix
+        computations, in degrees (must be 0-360)
+
+    Returns
+    -------
+    numpy array:
+        mstm_cscat_1
+    """
+    intensity_dat_1 = calc_intensity(target, incident, theta, phi)       
+    intensities_1 = intensity_dat_1[:,:,2]
+    mstm_cscat_1 = []
+    for i in np.arange(0, len(incident.length_scl_factor), 1):
+        intensity_1 = intensities_1[i,:]
+        fixedtheta_chunks_1 = np.vstack(list(chunks(intensity_1, len(phi))))
+        integral_overphi_1 = []      
+        for j in np.arange(0, len(fixedtheta_chunks_1)):        
+            integral_overphi_1.append(np.trapz(fixedtheta_chunks_1[j], x = phi*np.pi/180)) 
+        integral_overphi_1 = np.array(integral_overphi_1)
+        for th in theta:
+            theta_list = theta.tolist()        
+            integral_overphi_1[theta_list.index(th)] = integral_overphi_1[theta_list.index(th)] * np.sin(th*np.pi/180)           
+        integral_overtheta_1 = np.trapz(integral_overphi_1, x = theta*np.pi/180)
+        mstm_cscat_1.append(integral_overtheta_1)
+    mstm_cscat_1 = np.array(mstm_cscat_1)
+    
+    return mstm_cscat_1
 
 class Target:
     """

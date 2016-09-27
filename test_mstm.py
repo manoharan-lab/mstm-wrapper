@@ -37,19 +37,42 @@ import mstm
 import numpy as np
 from matplotlib import pyplot as plt
 
-# make target object
-#target = mstm.Target(np.array([1, 1]), np.array([1, 1]), np.array([0, 1]),
-#                     np.array([0.125, 0.125]), 1.4, 1, 2)
-target = mstm.Target(np.array([1]), np.array([1]), np.array([0]),
-                     np.array([0.125]), 1.54, 1.0, 1)
+# set paramaters
+num_spheres = 1
+xpos = np.array([1])
+ypos = np.array([1])
+zpos = np.array([0])
+radii = np.array([0.125])
+n_matrix = 1.0
+n_spheres = 1.54
+theta = np.arange(90, 181, 1)
+phi = np.arange(0, 361, 1)
+jones_vec = [1, 0]
+stokes_vec = [1, 1, 0, 0]
+min_wavelength = 0.35
+max_wavelength = 0.7
+length_scl_factor = np.linspace(2*np.pi/max_wavelength, 2*np.pi/min_wavelength, num = 20)
+
+# make the target object
+target = mstm.Target(xpos, ypos, zpos, radii, n_matrix, n_spheres, num_spheres)
+# make incident object
+incident = mstm.Incident(jones_vec, stokes_vec, length_scl_factor)
+# calculate the cross section
+cross_section1 = mstm.calc_cross_section(target, incident, theta, phi)
 
 # make incident object
-incident = mstm.Incident((0, 1), [1, -1, 0, 0], np.array([15.7]))
-    
-# calculate the scattering matrix
-scat_mat_data = mstm.calc_scat_matrix(target, incident, np.arange(0, 180, 1), np.array([0]))
-    
-# calculate the intensities
-intensity_data = mstm.calc_intensity(target, incident, np.arange(0, 180, 1), np.array([0]))
+incident2 = mstm.Incident([0, 1], [1, -1, 0, 0], length_scl_factor)
+# calculate the cross section
+cross_section2 = mstm.calc_cross_section(target, incident2, theta, phi)
 
-plt.plot(np.arange(0, 180, 1),intensity_data[0,:,2])
+plt.figure()
+plt.plot(2*np.pi/length_scl_factor, cross_section1, 2*np.pi/length_scl_factor, cross_section2, 
+         2*np.pi/length_scl_factor, (cross_section1+cross_section2)/2)
+plt.legend(['1,0','0,1','averaged'])
+plt.xlabel('Wavelength (um)')
+plt.xlim([0.4,0.7])
+plt.ylim([0,0.0026])
+plt.ylabel('Cross Section (um^2)')
+plt.title('backscattering Cross Section')
+
+
