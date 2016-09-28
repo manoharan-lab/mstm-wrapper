@@ -40,9 +40,11 @@ import glob
 import os
 import shutil
 import numpy as np
+from scipy import interpolate
+from scipy import integrate
 
 # change to match the filename of your executable
-MSTM_EXE = 'mstm.exe'
+MSTM_EXE = 'mstm_ubuntu.exe'
 
 def separate_exponent(num):
     """
@@ -234,26 +236,22 @@ def calc_cross_section(target, incident, theta, phi):
     Returns
     -------
     numpy array:
-        mstm_cscat_1
+        cross_section
     """
-    intensity_dat_1 = calc_intensity(target, incident, theta, phi)       
-    intensities_1 = intensity_dat_1[:,:,2]
-    mstm_cscat_1 = []
-    for i in np.arange(0, len(incident.length_scl_factor), 1):
-        intensity_1 = intensities_1[i,:]
-        fixedtheta_chunks_1 = np.vstack(list(chunks(intensity_1, len(phi))))
-        integral_overphi_1 = []      
-        for j in np.arange(0, len(fixedtheta_chunks_1)):        
-            integral_overphi_1.append(np.trapz(fixedtheta_chunks_1[j], x = phi*np.pi/180)) 
-        integral_overphi_1 = np.array(integral_overphi_1)
-        for th in theta:
-            theta_list = theta.tolist()        
-            integral_overphi_1[theta_list.index(th)] = integral_overphi_1[theta_list.index(th)] * np.sin(th*np.pi/180)           
-        integral_overtheta_1 = np.trapz(integral_overphi_1, x = theta*np.pi/180)
-        mstm_cscat_1.append(integral_overtheta_1)
-    mstm_cscat_1 = np.array(mstm_cscat_1)
-    
-    return mstm_cscat_1
+    intensity_data = calc_intensity(target, incident, theta, phi)       
+    intensities = intensity_data[:,:,2]
+    cross_section = []
+    for i in np.arange(0, len(incident.length_scl_factor), 1): # for each wl
+        I_cwl = intensities[i,:]
+        I_grid = []
+        tcnt = 0
+        for j in range(0,len(theta)): # for each theta
+            I_grid.append(I_cwl[tcnt*len(phi):(tcnt+1)*len(phi)]) # add the constant theta to the list
+            tcnt = tcnt + 1
+        f = interpolate.interp2d(phi, theta, I_grid)
+        [cs, err] = integrate.dblquad(f, 0, 2*np.pi, lambda th: np.pi/2, lambda th: np.pi)
+        cross_section.append(cs)
+    return np.array(cross_section)
 
 class Target:
     """
