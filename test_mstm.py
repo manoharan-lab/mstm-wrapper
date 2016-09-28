@@ -36,8 +36,49 @@ Based on work that was originally part of HoloPy
 import mstm
 import numpy as np
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
-# set paramaters
+###############################
+## Test individual functions ##
+###############################
+
+#num_spheres = 1
+#xpos = np.array([0])
+#ypos = np.array([0])
+#zpos = np.array([0])
+#radii = np.array([0.125])
+#n_matrix = 1.0
+#n_spheres = 1.54
+#theta = np.arange(0, 3, 1)
+#phi = np.arange(0, 3, 1)
+#jones_vec = [1, 0]
+#stokes_vec = [1, 1, 0, 0]
+#min_wavelength = 0.35
+#max_wavelength = 0.7
+#length_scl_factor = np.linspace(2*np.pi/max_wavelength, 2*np.pi/min_wavelength, num = 1)
+#
+#
+## make the target object
+#target = mstm.Target(xpos, ypos, zpos, radii, n_matrix, n_spheres, num_spheres)
+## make incident object
+#incident = mstm.Incident(jones_vec, stokes_vec, length_scl_factor)
+## calculate intensities
+#intensity_data = mstm.calc_intensity(target, incident, theta, phi) 
+#
+#Is = intensity_data[0,:,2]
+#plt.figure()
+#ax = plt.axes(projection = '3d')
+#Is3d = intensity_data[0,:,2].reshape(len(theta),len(phi))
+#p,t=np.meshgrid(phi,theta)
+#ax.plot_surface(p,t,Is3d)
+#ax.set_zlabel('intensity')
+#plt.xlabel('phi (deg)')
+#plt.ylabel('theta (deg)')
+#plt.title('intensities for vertically polarized light')
+
+################################
+## Full test of 1 sphere case ##
+################################
 num_spheres = 1
 xpos = np.array([0])
 ypos = np.array([0])
@@ -45,7 +86,7 @@ zpos = np.array([0])
 radii = np.array([0.125])
 n_matrix = 1.0
 n_spheres = 1.54
-theta = np.arange(90, 181, 1)
+theta = np.arange(90, 270, 1)
 phi = np.arange(0, 361, 1)
 jones_vec = [1, 0]
 stokes_vec = [1, 1, 0, 0]
@@ -60,8 +101,13 @@ incident = mstm.Incident(jones_vec, stokes_vec, length_scl_factor)
 # calculate the cross section
 cross_section1 = mstm.calc_cross_section(target, incident, theta, phi)
 
+jones_vec = [0, 1]
+stokes_vec = [1, -1, 0, 0]
+theta = np.arange(90, 270, 1)
+phi = np.arange(0, 361, 1)
+
 # make incident object
-incident2 = mstm.Incident([0, 1], [1, -1, 0, 0], length_scl_factor)
+incident2 = mstm.Incident(jones_vec, stokes_vec, length_scl_factor)
 # calculate the cross section
 cross_section2 = mstm.calc_cross_section(target, incident2, theta, phi)
 
@@ -71,7 +117,7 @@ plt.plot(2*np.pi/length_scl_factor, cross_section1, 2*np.pi/length_scl_factor, c
 plt.legend(['1,0','0,1','averaged'])
 plt.xlabel('Wavelength (um)')
 plt.xlim([0.4,0.7])
-plt.ylim([0,0.005])
+#plt.ylim([0,0.005])
 plt.ylabel('Cross Section (um^2)')
 plt.title('backscattering Cross Section')
 
