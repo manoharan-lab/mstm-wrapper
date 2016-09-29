@@ -112,12 +112,12 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
 
     # prepare input file for fortran code
     output_name = 'mstm_out.dat'
-    lsf_start = incident.length_scl_factor[0]
-    lsf_end = incident.length_scl_factor[len(incident.length_scl_factor)-1]
     if len(incident.length_scl_factor)==1:
         lsf_delta = 0
     if len(incident.length_scl_factor)>1:
         lsf_delta = incident.length_scl_factor[1]-incident.length_scl_factor[0]
+    lsf_start = incident.length_scl_factor[0]
+    lsf_end = incident.length_scl_factor[len(incident.length_scl_factor)-1] + lsf_delta/2
     length_scl_factor_info = [lsf_start, lsf_end, lsf_delta]
     polarization_angle = np.arctan2(incident.jones_vec[1], incident.jones_vec[0])*180/np.pi
     parameters = (target.num_spheres, target.index_spheres, target.index_matrix, polarization_angle)
@@ -238,7 +238,7 @@ def calc_cross_section(target, incident, theta, phi):
     intensity_data = calc_intensity(target, incident, theta, phi)
     cross_section = np.zeros([len(incident.length_scl_factor)])
     for i in np.arange(0, len(incident.length_scl_factor), 1): # for each wl
-        I_grid = intensity_data[i,:,2]*np.sin(intensity_data[i,:,0]*np.pi/180)
+        I_grid = intensity_data[i,:,2]*np.sin(intensity_data[i,:,0]*np.pi/180.)
         I_grid = I_grid.reshape(len(theta),len(phi))
         f = interpolate.interp2d(phi, theta, I_grid)
         [cross_section[i], err] = integrate.dblquad(f, theta[0]*np.pi/180,
