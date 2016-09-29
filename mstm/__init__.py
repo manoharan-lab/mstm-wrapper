@@ -63,13 +63,7 @@ def separate_exponent(num):
     b = np.nan_to_num(b)
     e[np.isneginf(e)] = 0
     e = e.astype(int)
-    return b, e
-    
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]    
-
+    return b, e   
 
 def calc_scat_matrix(target, incident, theta, phi, delete=False):
     """
@@ -205,6 +199,9 @@ def calc_intensity(target, incident, theta, phi):
     -------
     numpy array:
         intensity_data
+        - a 3d numpy array whose first dimention is the number of wavelengths, 
+        2nd dimention is the number of angles, and 3rd dimention is the 3 values
+        needed to describe the data: theta, phi, and wavelength
     """
     scat_mat_data = calc_scat_matrix(target, incident, theta, phi)
     intensity_data = np.zeros([len(incident.length_scl_factor), len(theta)*len(phi), 3])
@@ -238,20 +235,15 @@ def calc_cross_section(target, incident, theta, phi):
     numpy array:
         cross_section
     """
-    intensity_data = calc_intensity(target, incident, theta, phi)       
-    intensities = intensity_data[:,:,2]
-    cross_section = []
+    intensity_data = calc_intensity(target, incident, theta, phi)
+    cross_section = np.zeros([len(incident.length_scl_factor)])
     for i in np.arange(0, len(incident.length_scl_factor), 1): # for each wl
-        I_cwl = intensities[i,:]
-        I_grid = []
-        tcnt = 0
-        for j in range(0,len(theta)): # for each theta
-            I_grid.append(I_cwl[tcnt*len(phi):(tcnt+1)*len(phi)]) # add the constant theta to the list
-            tcnt = tcnt + 1
+        I_grid = intensity_data[i,:,2]*np.sin(intensity_data[i,:,0]*np.pi/180)
+        I_grid = I_grid.reshape(len(theta),len(phi))
         f = interpolate.interp2d(phi, theta, I_grid)
-        [cs, err] = integrate.dblquad(f, 0, 2*np.pi, lambda th: np.pi/2, lambda th: np.pi)
-        cross_section.append(cs)
-    return np.array(cross_section)
+        [cross_section[i], err] = integrate.dblquad(f, theta[0]*np.pi/180,
+            theta[len(theta)-1]*np.pi/180, lambda ph: phi[0]*np.pi/180, lambda ph: phi[len(phi)-1]*np.pi/180)
+    return cross_section
 
 class Target:
     """
