@@ -44,7 +44,7 @@ from scipy import interpolate
 from scipy import integrate
 
 # change to match the filename of your executable
-MSTM_EXE = 'mstm_ubuntu.exe'
+MSTM_EXE = 'mstm'
 
 def separate_exponent(num):
     """
@@ -59,11 +59,12 @@ def separate_exponent(num):
     b: float, base of input number
     e: int, exponent of input number
     """
-    b, e = num/10**(np.floor(np.log10(np.abs(num)))), np.floor(np.log10(np.abs(num)))
+    b, e = num/10**(np.floor(np.log10(np.abs(num)))),\
+           np.floor(np.log10(np.abs(num)))
     b = np.nan_to_num(b)
     e[np.isneginf(e)] = 0
     e = e.astype(int)
-    return b, e   
+    return b, e
 
 def calc_scat_matrix(target, incident, theta, phi, delete=False):
     """
@@ -117,10 +118,13 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
     if len(incident.length_scl_factor)>1:
         lsf_delta = incident.length_scl_factor[1]-incident.length_scl_factor[0]
     lsf_start = incident.length_scl_factor[0]
-    lsf_end = incident.length_scl_factor[len(incident.length_scl_factor)-1] + lsf_delta/2
+    lsf_end = incident.length_scl_factor[len(incident.length_scl_factor)-1] +\
+              lsf_delta/2
     length_scl_factor_info = [lsf_start, lsf_end, lsf_delta]
-    polarization_angle = np.arctan2(incident.jones_vec[1], incident.jones_vec[0])*180/np.pi
-    parameters = (target.num_spheres, target.index_spheres, target.index_matrix, polarization_angle)
+    polarization_angle = np.arctan2(incident.jones_vec[1],
+                                    incident.jones_vec[0])*180/np.pi
+    parameters = (target.num_spheres, target.index_spheres,
+                  target.index_matrix, polarization_angle)
 
     # have to make sure we don't print any e's into the text file.
     radb, rade = separate_exponent(target.radii)
@@ -135,7 +139,8 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
                                                 str(zb[k])+'d'+str(ze[k])+'\n')
     with open(templatelocation, 'r') as infile:
         InF = infile.read()
-    InF = InF.format(parameters, g, output_name, angfile_name, len(angs), length_scl_factor_info)
+    InF = InF.format(parameters, g, output_name, angfile_name, len(angs),
+                     length_scl_factor_info)
     input_file = open(os.path.join(temp_dir, 'mstm.inp'), 'w')
     input_file.write(InF)
     input_file.close()
@@ -152,15 +157,18 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
     mstm_result = [line.replace('\n', '') for line in mstm_result]
     mstm_result = [line.replace('\t', '') for line in mstm_result]
     mstm_result = [line for line in mstm_result if line]
-    scat_mat_el_row = [i for i, j in enumerate(mstm_result) if j == ' scattering matrix elements']
-    qsca_row = [i for i, j in enumerate(mstm_result) if j == ' unpolarized total ext, abs, scat efficiencies, w.r.t. xv, and asym. parm']
+    scat_mat_el_row = [i for i, j in enumerate(mstm_result)
+                       if j == ' scattering matrix elements']
+    qsca_row = [i for i, j in enumerate(mstm_result)
+                if j == ' unpolarized total ext, abs, scat efficiencies, w.r.t. xv, and asym. parm']
 
     if polarization_angle == 0:
         qsca_line_shift = 3
     else :
         qsca_line_shift = 5
     for m in range(len(scat_mat_el_row)):
-        smdata = mstm_result[scat_mat_el_row[m] + 2 : scat_mat_el_row[m] + 2 + len(angs)]
+        smdata = mstm_result[scat_mat_el_row[m] + 2 : scat_mat_el_row[m] + \
+                             2 + len(angs)]
         qscanums = mstm_result[qsca_row[m]+ qsca_line_shift]
         qsca = qscanums.split(' ')
         qsca = [item for item in qsca if item]
@@ -190,44 +198,50 @@ def calc_intensity(target, incident, theta, phi):
     ----------
     target: an object of the Target class
     incident: an object of the Incident class
-    theta: numpy array of values for the polar scattering angle theta for scattering
-        matrix computations, in degrees (must be 0-180)
-    phi: numpy array of values for the azimuth angle theta for scattering matrix
-        computations, in degrees (must be 0-360)
+    theta: numpy array
+        values for the polar scattering angle theta for scattering matrix
+        computations, in degrees (must be 0-180)
+    phi: numpy array
+        values for the azimuth angle theta for scattering matrix computations,
+        in degrees (must be 0-360)
 
     Returns
     -------
     numpy array:
-        intensity_data
-        - a 3d numpy array whose first dimention is the number of wavelengths, 
-        2nd dimention is the number of angles, and 3rd dimention is the 3 values
-        needed to describe the data: theta, phi, and wavelength
+        a 3d numpy array whose first dimension is the number of wavelengths,
+        2nd dimension is the number of angles, and 3rd dimension is the 3
+        values needed to describe the data: theta, phi, and wavelength
     """
     scat_mat_data = calc_scat_matrix(target, incident, theta, phi)
-    intensity_data = np.zeros([len(incident.length_scl_factor), len(theta)*len(phi), 3])
+    intensity_data = np.zeros([len(incident.length_scl_factor),
+                               len(theta)*len(phi), 3])
     prefactor = 1.0/((target.index_matrix*incident.length_scl_factor)**2)
     intensity_data[:,:,0] = scat_mat_data[:,:,0]
     intensity_data[:,:,1] = scat_mat_data[:,:,1]
-    intensity_data[:,:,2] = prefactor[:,np.newaxis]*(scat_mat_data[:,:,2]*incident.stokes_vec[0] +
-                                         scat_mat_data[:,:,3]*incident.stokes_vec[1] +
-                                         scat_mat_data[:,:,4]*incident.stokes_vec[2] +
-                                         scat_mat_data[:,:,5]*incident.stokes_vec[3])                                  
+    intensity_data[:,:,2] = prefactor[:,np.newaxis] * \
+                            (scat_mat_data[:,:,2]*incident.stokes_vec[0] + 
+                             scat_mat_data[:,:,3]*incident.stokes_vec[1] + 
+                             scat_mat_data[:,:,4]*incident.stokes_vec[2] +
+                             scat_mat_data[:,:,5]*incident.stokes_vec[3])
     return intensity_data
     
 def calc_cross_section(target, incident, theta, phi):
     """
     Calculate the cross section from wavelength. 
-    If theta = 0-180 and phi = 0-360, the cross section calculated is the total cross section
-    If theta = 90-180 and phi = 0-360, the cross section caclulated is the backscattering cross section,
-    where the backscattering cross section is proportional to the reflectance
+    If theta = 0-180 and phi = 0-360, the cross section calculated is the total
+    cross section
+    If theta = 90-180 and phi = 0-360, the cross section caclulated is the
+    reflection cross section, which is proportional to the reflectivity
 
     Parameters
     ----------
     target: an object of the Target class
     incident: an object of the Incident class
-    theta: numpy array of values for the polar scattering angle theta for scattering
-        matrix computations, in degrees (must be 0-180)
-    phi: numpy array of values for the azimuth angle theta for scattering matrix
+    theta: numpy array
+        values for the polar scattering angle theta for scattering matrix
+        computations, in degrees (must be 0-180)
+    phi: numpy array
+        values for the azimuth angle theta for scattering matrix
         computations, in degrees (must be 0-360)
 
     Returns
@@ -251,8 +265,8 @@ class Target:
     """
     def __init__(self, x, y, z, radii, index_matrix, index_spheres, num_spheres):
         """
-        Initialize object of the Target class. Target objects represent the sphere
-        assemblies that scatter light
+        Initialize object of the Target class. Target objects represent the
+        sphere assemblies that scatter light
 
         Parameters
         ----------
