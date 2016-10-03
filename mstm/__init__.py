@@ -65,7 +65,7 @@ def separate_exponent(num):
     e = e.astype(int)
     return b, e   
 
-def calc_scat_matrix(target, incident, theta, phi, delete=False):
+def calc_scat_matrix(target, incident, theta, phi, azimuth_average = 0, delete = False):
     """
     Calculate the first row of the mueller scattering matrix as a function of
     theta, phi, and wavelength.
@@ -135,7 +135,7 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
                                                 str(zb[k])+'d'+str(ze[k])+'\n')
     with open(templatelocation, 'r') as infile:
         InF = infile.read()
-    InF = InF.format(parameters, g, output_name, angfile_name, len(angs), length_scl_factor_info)
+    InF = InF.format(parameters, g, output_name, angfile_name, len(angs), length_scl_factor_info, azimuth_average)
     input_file = open(os.path.join(temp_dir, 'mstm.inp'), 'w')
     input_file.write(InF)
     input_file.close()
@@ -145,7 +145,11 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
     subprocess.check_call(cmd, cwd=temp_dir)
 
     # Read scattering matrix from results file
-    scat_mat_data = np.zeros([len(incident.length_scl_factor), len(thetatot), 18])
+    if azimuth_average == 0:
+        data_cols = 18
+    else:
+        data_cols = 17
+    scat_mat_data = np.zeros([len(incident.length_scl_factor), len(thetatot), data_cols])
     result_file = glob.glob(os.path.join(temp_dir, 'mstm_out.dat'))[0]
     with open(result_file, "r") as myfile:
         mstm_result = myfile.readlines()
@@ -171,7 +175,8 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
             smdata[i] = [float(j) for j in a]
             smdata[i] = np.array(smdata[i])*qsca/8
             smdata[i][0] = smdata[i][0]*8/qsca
-            smdata[i][1] = smdata[i][1]*8/qsca
+            if data_cols == 18:
+                smdata[i][1] = smdata[i][1]*8/qsca
         scat_mat_data[m][:][:] = smdata
 
     # delete temp files
@@ -181,7 +186,7 @@ def calc_scat_matrix(target, incident, theta, phi, delete=False):
 
     return scat_mat_data
 
-def calc_intensity(target, incident, theta, phi):
+def calc_intensity(target, incident, theta, phi, azimuth_average = 0):
     """
     Calculate the intensity of light scattered from a structure as a function
     of theta, phi, and wavelength.
@@ -203,18 +208,23 @@ def calc_intensity(target, incident, theta, phi):
         2nd dimention is the number of angles, and 3rd dimention is the 3 values
         needed to describe the data: theta, phi, and wavelength
     """
-    scat_mat_data = calc_scat_matrix(target, incident, theta, phi)
-    intensity_data = np.zeros([len(incident.length_scl_factor), len(theta)*len(phi), 3])
+    scat_mat_data = calc_scat_matrix(target, incident, theta, phi, azimuth_average)
+    if azimuth_average == 0:
+        col = 2
+    else:
+        col = 1
+    intensity_data = np.zeros([len(incident.length_scl_factor), len(theta)*len(phi), col + 1])
     prefactor = 1.0/((target.index_matrix*incident.length_scl_factor)**2)
     intensity_data[:,:,0] = scat_mat_data[:,:,0]
-    intensity_data[:,:,1] = scat_mat_data[:,:,1]
-    intensity_data[:,:,2] = prefactor[:,np.newaxis]*(scat_mat_data[:,:,2]*incident.stokes_vec[0] +
-                                         scat_mat_data[:,:,3]*incident.stokes_vec[1] +
-                                         scat_mat_data[:,:,4]*incident.stokes_vec[2] +
-                                         scat_mat_data[:,:,5]*incident.stokes_vec[3])                                  
+    if azimuth_average == 0:
+        intensity_data[:,:,1] = scat_mat_data[:,:,1]
+    intensity_data[:,:, col] = prefactor[:,np.newaxis]*(scat_mat_data[:, :, col]*incident.stokes_vec[0] +
+                                         scat_mat_data[:, :, col + 1]*incident.stokes_vec[1] +
+                                         scat_mat_data[:,:, col + 2]*incident.stokes_vec[2] +
+                                         scat_mat_data[:,:, col + 3]*incident.stokes_vec[3])                                  
     return intensity_data
     
-def calc_cross_section(target, incident, theta, phi):
+def calc_cross_section(target, incident, theta, phi, azimuth_average = 0):
     """
     Calculate the cross section from wavelength. 
     If theta = 0-180 and phi = 0-360, the cross section calculated is the total cross section
@@ -235,14 +245,29 @@ def calc_cross_section(target, incident, theta, phi):
     numpy array:
         cross_section
     """
-    intensity_data = calc_intensity(target, incident, theta, phi)
+    intensity_data = calc_intensity(target, incident, theta, phi, azimuth_average)
     cross_section = np.zeros([len(incident.length_scl_factor)])
     for i in np.arange(0, len(incident.length_scl_factor), 1): # for each wl
-        I_grid = intensity_data[i,:,2]*np.sin(intensity_data[i,:,0]*np.pi/180.)
-        I_grid = I_grid.reshape(len(theta),len(phi))
-        f = interpolate.interp2d(phi, theta, I_grid)
-        [cross_section[i], err] = integrate.dblquad(f, theta[0]*np.pi/180,
-            theta[len(theta)-1]*np.pi/180, lambda ph: phi[0]*np.pi/180, lambda ph: phi[len(phi)-1]*np.pi/180)
+        if azimuth_average == 0:
+            I_grid = intensity_data[i,:,2]*np.sin(intensity_data[i,:,0]*np.pi/180.)
+            I_grid = I_grid.reshape(len(theta),len(phi))
+            f = interpolate.interp2d(phi*np.pi/180, theta*np.pi/180, I_grid)
+            [cross_section[i], err] = integrate.dblquad(f, theta[0]*np.pi/180,
+                theta[len(theta)-1]*np.pi/180, lambda ph: phi[0]*np.pi/180, lambda ph: phi[len(phi)-1]*np.pi/180)
+        else:
+            I_grid = intensity_data[i,:,1]*np.sin(intensity_data[i,:,0]*np.pi/180.)
+            I_grid = I_grid.reshape(len(theta),len(phi))
+            I_grid_1d = I_grid[:,0]
+            f = interpolate.interp1d(theta*np.pi/180, I_grid_1d, kind = 'quadratic')
+            [cross_section[i], err] = integrate.quad(f, theta[0]*np.pi/180,
+                theta[len(theta)-1]*np.pi/180)
+#           
+#            #try integrating with trapz                
+#            I_grid = intensity_data[i,:,1]*np.sin(intensity_data[i,:,0]*np.pi/180.)
+#            I_grid = I_grid.reshape(len(theta),len(phi))
+#            I_grid_1d = I_grid[:,0]
+#            cross_section[i] = np.trapz(I_grid_1d, theta)
+            
     return cross_section
 
 class Target:
