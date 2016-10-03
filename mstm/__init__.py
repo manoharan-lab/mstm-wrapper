@@ -62,8 +62,9 @@ class MSTMCalculation:
         azimuthally averaged
     azimuthal_average : boolean
         True if azimuthal averaging is on
-    fixed_orientation : boolean
-        True if fixed orientation; False if random orientation
+    fixed_orientation : boolean 
+        True if fixed orientation; False if random orientation. Not currently
+        implemented
 
     Methods
     -------
@@ -387,7 +388,8 @@ class MSTMResult:
 
 class Target:
     """
-    Class to contain data describing the sphere assemblies that scatter the light
+    Class to contain data describing the sphere assemblies that scatter the
+    light
 
     Attributes
     ----------
@@ -403,13 +405,11 @@ class Target:
         refractive index of medium surrounding spheres
     index_spheres : array
         refractive index of spheres
-    num_spheres : integer
-        number of spheres in assembly
 
     Notes
     -----
     x, y, z, and radii must be in same units, and must also match units of
-    wavelength of incident light, which is defined in Incident class
+    wavelength of incident light
     """
     def __init__(self, x, y, z, radii, index_matrix, index_spheres):
         """
