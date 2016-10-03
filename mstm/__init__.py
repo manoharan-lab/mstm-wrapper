@@ -67,8 +67,9 @@ class MSTMCalculation:
 
     Methods
     -------
-    run() : write input files, open connection to MSTM executable,
-            and run the calculation
+    run()
+        write input files, open connection to MSTM executable,
+        and run the calculation
     """
     def __init__(self, target, wavelength, theta, phi=None, fixed=True,
                  mstm_executable = "mstm"):
@@ -103,6 +104,7 @@ class MSTMCalculation:
 
         # check if wavelength is tuple (has "len" attribute) or float
         if hasattr(self.wavelength, "__len__"):
+            # if tuple, the third component specifies the number of wavelengths
             self.num_wavelengths = self.wavelength[2]
         else:
             self.num_wavelengths = 1
@@ -240,11 +242,10 @@ class MSTMResult:
 
     Methods
     -------
-    calc_intensity(stokes) : calculate scattered intensity for given Stokes
-        vector.
-    calc_cross_section(stokes, theta_min, theta_max) : calculate cross-section
-        by integrating azimuthally-averaged intensities
-
+    calc_intensity(stokes)
+        calculate scattered intensity for given Stokes vector.
+    calc_cross_section(stokes, theta_min, theta_max)
+        calculate cross-section by integrating azimuthally-averaged intensities
     """
     def __init__(self, output_filename, mstm_calculation):
         """
@@ -308,8 +309,7 @@ class MSTMResult:
             qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
             # this selects the last 16 rows of the scattering matrix, which
             # correspond to the matrix elements (excludes theta and phi columns)
-            self.scattering_matrix[i].iloc[:, 2:-1] *= qsca/8
-
+            self.scattering_matrix[i].iloc[:, -16:] *= qsca/8
 
     def calc_intensity(self, stokes):
         """
@@ -348,7 +348,7 @@ class MSTMResult:
 
     def calc_cross_section(self, stokes, theta_min, theta_max):
         """
-        Calculate the cross section from wavelength. 
+        Calculate the cross section from wavelength.
         If theta = 0-180, the cross section calculated is the total
         cross section
         If theta = 90-180, the cross section caclulated is the
