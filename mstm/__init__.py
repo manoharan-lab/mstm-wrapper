@@ -305,12 +305,6 @@ class MSTMResult:
         else:
             self.wavelength = np.array([mstm_calculation.wavelength])
 
-        # correct scattering matrix elements
-        for i in range(mstm_calculation.num_wavelengths):
-            qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
-            # this selects the last 16 rows of the scattering matrix, which
-            # correspond to the matrix elements (excludes theta and phi columns)
-            self.scattering_matrix[i].iloc[:, -16:] *= qsca/8
 
     def calc_intensity(self, stokes):
         """
@@ -327,17 +321,33 @@ class MSTMResult:
             one for each wavelength; each DataFrame contains three columns:
             theta, phi, intensity (two columnes when azimuthally averaged)
         """
+
         intensity = []
+        # calculate volume mean radius and geometrical cross-section
+        vm_radius = self.mstm_calculation.target.volmean_radius()
+        geometric_cross_sec = np.pi*vm_radius**2
+
         for i in range(self.mstm_calculation.num_wavelengths):
             wavevec = 2*np.pi/self.wavelength[i]
             index_matrix = self.mstm_calculation.target.index_matrix
-            prefactor = 1.0/((index_matrix*wavevec)**2)
+            # S11 (the so-called "phase function") is normalized so that 1/4pi
+            # times its integral over all angles is equal to 1.  So we have to
+            # correct by multiplying it by a factor of Csca (see Bohren and
+            # Huffman sec 3.4 page 73) to get the differential scattering
+            # cross-section. 
+            qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
+            csca = qsca*geometric_cross_sec
+            # prefactor = 1.0/((index_matrix*wavevec)**2)
+            prefactor = csca
+
             mat = self.scattering_matrix[i]
             intensities = prefactor*(mat['11']*stokes[0] +
                                      mat['12']*stokes[1] +
                                      mat['13']*stokes[2] +
                                      mat['14']*stokes[3])
+            # label the column in the dataframe
             intensities.name = 'intensity'
+
             if self.mstm_calculation.azimuthal_average is True:
                 dataframe = pd.concat([mat['theta'], intensities], axis = 1)
             else:
@@ -422,3 +432,10 @@ class Target:
         self.radii = radii
         self.index_matrix = index_matrix
         self.index_spheres = index_spheres
+
+    def volmean_radius(self):
+        """
+        Calculates volume-mean radius.  This quantity is needed to calculate
+        the (dimensional) cross-sections from the efficiencies.
+        """
+        return np.power(np.sum(np.power(self.radii, 3)), 1./3)
