@@ -387,10 +387,10 @@ class MSTMResult:
         intensity = self.calc_intensity(stokes)
         cross_section = np.zeros(num_wavelengths)
         for i in range(num_wavelengths):
-            integrand = (intensity[i]['intensity']*
-                         np.sin(intensity[i]['theta']*np.pi/180.))
-            f = interpolate.interp1d(intensity[i]['theta'].as_matrix(),
-                                     integrand.as_matrix())
+            theta = intensity[i]['theta'].as_matrix()
+            theta = theta * np.pi/180.
+            integrand = (intensity[i]['intensity']*np.sin(theta))
+            f = interpolate.interp1d(theta, integrand.as_matrix())
             cross_section[i], err = integrate.quad(f, theta_min*np.pi/180,
                                                    theta_max*np.pi/180)
 
