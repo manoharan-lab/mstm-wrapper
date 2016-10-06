@@ -338,7 +338,7 @@ class MSTMResult:
             qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
             csca = qsca*geometric_cross_sec
             # prefactor = 1.0/((index_matrix*wavevec)**2)
-            prefactor = csca
+            prefactor = csca/2.0
 
             mat = self.scattering_matrix[i]
             intensities = prefactor*(mat['11']*stokes[0] +
@@ -423,7 +423,7 @@ class Target:
     """
     def __init__(self, x, y, z, radii, index_matrix, index_spheres):
         """
-        Constructor for object of the Target class. 
+        Constructor for object of the Target class.
         """
         self.num_spheres = len(x)
         self.x = x
