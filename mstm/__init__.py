@@ -299,9 +299,11 @@ class MSTMResult:
             self.asymmetry.append(g)
 
         if mstm_calculation.num_wavelengths > 1:
-            self.wavelength = np.linspace(mstm_calculation.wavelength[0],
-                                          mstm_calculation.wavelength[1],
-                                          mstm_calculation.wavelength[2])
+            wavevec_start = 2*np.pi/self.mstm_calculation.wavelength[0]
+            wavevec_end = 2*np.pi/self.mstm_calculation.wavelength[1]
+            wavevec = np.linspace(wavevec_start, wavevec_end,
+                                  self.mstm_calculation.num_wavelengths)
+            self.wavelength = 2*np.pi/wavevec
         else:
             self.wavelength = np.array([mstm_calculation.wavelength])
 
