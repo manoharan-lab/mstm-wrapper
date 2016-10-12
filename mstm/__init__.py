@@ -170,6 +170,7 @@ class MSTMCalculation:
             wavevec_delta = (2*np.pi/self.wavelength[1] -
                              2*np.pi/self.wavelength[0])/(self.wavelength[2]-1)
             wavevec_start = 2*np.pi/self.wavelength[0]
+            # add the fraction of wavevec_delta to avoid round-off error
             wavevec_end = 2*np.pi/self.wavelength[1] + wavevec_delta/2.0
         else:
             wavevec_delta = 0
