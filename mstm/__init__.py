@@ -169,11 +169,8 @@ class MSTMCalculation:
         if self.num_wavelengths > 1:
             wavevec_delta = (2*np.pi/self.wavelength[1] -
                              2*np.pi/self.wavelength[0])/(self.wavelength[2]-1)
-            print(wavevec_delta)
             wavevec_start = 2*np.pi/self.wavelength[0]
-            print(wavevec_start)
             wavevec_end = 2*np.pi/self.wavelength[1] + wavevec_delta/2.0
-            print(wavevec_end)
         else:
             wavevec_delta = 0
             wavevec_start = 2*np.pi/self.wavelength
