@@ -119,6 +119,7 @@ class MSTMCalculation:
         if mstm_path is None:
             # search in the path to the current module
             mstm_path = shutil.which(mstm_executable, path=module_dir)
+            #mstm_path = module_dir + '/mstm.exe' # temporary fix for directory problems
         if mstm_path is None:
             raise RuntimeError("MSTM executable" + " \'" + mstm_executable +
                                "\' " + "not found")
@@ -169,7 +170,7 @@ class MSTMCalculation:
             wavevec_delta = (2*np.pi/self.wavelength[1] -
                              2*np.pi/self.wavelength[0])/(self.wavelength[2]-1)
             wavevec_start = 2*np.pi/self.wavelength[0]
-            wavevec_end = 2*np.pi/self.wavelength[1]
+            wavevec_end = 2*np.pi/self.wavelength[1] + wavevec_delta/2.0
         else:
             wavevec_delta = 0
             wavevec_start = 2*np.pi/self.wavelength
@@ -330,8 +331,6 @@ class MSTMResult:
         geometric_cross_sec = np.pi*vm_radius**2
 
         for i in range(self.mstm_calculation.num_wavelengths):
-            wavevec = 2*np.pi/self.wavelength[i]
-            index_matrix = self.mstm_calculation.target.index_matrix
             # S11 (the so-called "phase function") is normalized so that 1/4pi
             # times its integral over all angles is equal to 1.  So we have to
             # correct by multiplying it by a factor of Csca (see Bohren and
