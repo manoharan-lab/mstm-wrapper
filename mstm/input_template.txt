@@ -8,19 +8,19 @@ calculating reflectivity.
 ***********************************************************
 end_comment
 number_spheres
-{0[0]}
+{target[0]}
 sphere_position_file
 
 output_file
-{2}
+{output_file}
 append_output_file
-1
+0
 run_print_file
 
 write_sphere_data
 1
 real_ref_index_scale_factor
-{0[1]}d0 
+{target[1]}d0 
 imag_ref_index_scale_factor
 0.0d0
 real_chiral_factor
@@ -28,7 +28,7 @@ real_chiral_factor
 imag_chiral_factor
 0.0d0
 medium_real_ref_index
-{0[2]}d0
+{target[2]}d0
 medium_imag_ref_index
 0.d0
 medium_real_chiral_factor
@@ -54,9 +54,9 @@ near_field_translation_distance
 iterations_per_correction
 20
 scattering_angle_file
-{3}
+{scattering_angle_file}
 number_scattering_angles
-{4}
+{number_scattering_angles}
 incident_or_target_frame
 0
 normalize_scattering_matrix
@@ -68,7 +68,7 @@ gaussian_beam_focal_point
 fixed_or_random_orientation
 0
 azimuth_average_scattering_matrix
-{6}
+{azimuth_average}
 incident_azimuth_angle_deg
 0.d0
 incident_polar_angle_deg
@@ -80,7 +80,7 @@ scattering_coefficient_file
 track_iterations
 1
 calculate_near_field
-1
+0
 near_field_plane_coord
 1
 near_field_plane_position
@@ -90,7 +90,7 @@ near_field_plane_vertices
 spacial_step_size
 0.5d0
 polarization_angle_deg
-{0[3]}
+0.d0
 near_field_output_file
 nf_default_out.dat
 near_field_output_data
@@ -104,8 +104,8 @@ tm_default.dat
 t_matrix_convergence_epsilon
 1.d-7
 sphere_sizes_and_positions
-{1}
+{spheres}
 multiple_run
 length_scale_factor
-{5[0]} {5[1]} {5[2]}
+{length_scale_factor[0]} {length_scale_factor[1]} {length_scale_factor[2]}
 end_of_options
