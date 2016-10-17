@@ -37,8 +37,12 @@ import mstm
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import scipy.integrate
-from mpl_toolkits.mplot3d import Axes3D
+from nose.tools import assert_raises, assert_equal
+from numpy.testing import assert_almost_equal, assert_array_almost_equal
+
+#############################################################################
+## Test results for 1 sphere against mie and F77 holopy code (multisphere) ##
+#############################################################################
 
 # make target object
 xpos = np.array([0])
@@ -48,19 +52,21 @@ radii = np.array([0.125])
 n_matrix = 1.0
 n_spheres = 1.54
 target = mstm.Target(xpos, ypos, zpos, radii, n_matrix, n_spheres)
-wavelength = 0.301, 0.78, 20
+wavelength = 0.4, 0.7, 20
 theta = np.linspace(0, 180, 181)
 
-# calculate the cross section for horizontal polarization
+# calculate the cross section for random polarization
 calculation = mstm.MSTMCalculation(target, wavelength, theta, phi=None)
 result = calculation.run()
 total_csca = result.calc_cross_section(np.array([1, 0, 0, 0]), 0., 180.)
+back_csca = result.calc_cross_section(np.array([1, 0, 0, 0]), 90., 180.)
+assert_almost_equal(total_csca[0], 9.934121133041029506e-02, decimal = 5) # compare result with mie
 
-plt.figure()
-plt.plot(result.wavelength, (total_csca), linewidth = 1.0)
-plt.legend(['unpolarized (from MSTM F90)'])
-plt.xlabel('Wavelength (um)')
-plt.xlim([0.4,0.7])
-plt.ylim([0.0, 0.10])
-plt.ylabel('Cross Section (um^2)')
-plt.title('total Cross Section')
+#plt.figure()
+#plt.plot(result.wavelength, (total_csca), linewidth = 1.0)
+#plt.legend(['unpolarized (from MSTM F90)'])
+#plt.xlabel('Wavelength (um)')
+#plt.xlim([0.4,0.7])
+#plt.ylim([0.0, 0.10])
+#plt.ylabel('Cross Section (um^2)')
+#plt.title('total Cross Section')
