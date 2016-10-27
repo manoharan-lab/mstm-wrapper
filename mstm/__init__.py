@@ -62,7 +62,7 @@ class MSTMCalculation:
         azimuthally averaged
     azimuthal_average : boolean
         True if azimuthal averaging is on
-    fixed_orientation : boolean 
+    fixed_orientation : boolean
         True if fixed orientation; False if random orientation. Not currently
         implemented
 
@@ -165,7 +165,7 @@ class MSTMCalculation:
         # prepare input file for fortran code
         output_name = 'mstm_out.dat'
         # check if wavelength is tuple or scalar and set length_scale_factor
-        # accordingly 
+        # accordingly
         if self.num_wavelengths > 1:
             wavevec_delta = (2*np.pi/self.wavelength[1] -
                              2*np.pi/self.wavelength[0])/(self.wavelength[2]-1)
@@ -336,10 +336,12 @@ class MSTMResult:
             # times its integral over all angles is equal to 1.  So we have to
             # correct by multiplying it by a factor of Csca (see Bohren and
             # Huffman sec 3.4 page 73) to get the differential scattering
-            # cross-section. 
+            # cross-section.
             qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
             csca = qsca*geometric_cross_sec
-            # prefactor = 1.0/((index_matrix*wavevec)**2)
+            # we need to divide by the matrix index for the results to agree
+            # with Mie theory for a single spheres. It's not clear why this
+            # factor has to appear here.
             prefactor = csca/(2.0*self.mstm_calculation.target.index_matrix)
 
             mat = self.scattering_matrix[i]
