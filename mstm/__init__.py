@@ -340,7 +340,7 @@ class MSTMResult:
             qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
             csca = qsca*geometric_cross_sec
             # prefactor = 1.0/((index_matrix*wavevec)**2)
-            prefactor = csca/2.0
+            prefactor = csca/(2.0*self.mstm_calculation.target.index_matrix)
 
             mat = self.scattering_matrix[i]
             intensities = prefactor*(mat['11']*stokes[0] +
