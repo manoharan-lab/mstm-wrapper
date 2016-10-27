@@ -174,7 +174,7 @@ class MSTMCalculation:
             wavevec_end = 2*np.pi/self.wavelength[1] + wavevec_delta/2.0
         else:
             wavevec_delta = 0
-            wavevec_start = 2*np.pi/self.wavelength
+            wavevec_start = 2*np.pi/self.wavelength[0]
             wavevec_end = wavevec_start
         wavevec_info = [wavevec_start, wavevec_end, wavevec_delta]
         parameters = (self.target.num_spheres, self.target.index_spheres,
