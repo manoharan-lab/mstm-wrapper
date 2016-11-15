@@ -97,7 +97,7 @@ class MSTMCalculation:
         self.theta = theta
         self.phi = phi
         self.fixed = fixed
-
+        
         if self.phi is None:
             self.azimuthal_average = True
         else:
@@ -144,6 +144,10 @@ class MSTMCalculation:
         MSTMresult object
             results of calculation
         """
+        if self.num_wavelengths > 1:
+            wavelengths = np.linspace(self.wavelength[0], self.wavelength[1], self.num_wavelengths)
+        else:
+            wavelengths = np.array(self.wavelength)
 
         # put input files in a temp directory
         temp_dir = tempfile.mkdtemp()
@@ -160,57 +164,54 @@ class MSTMCalculation:
         phitot = np.tile(phi, len(self.theta))
         angles = np.vstack((thetatot, phitot))
         angles = angles.transpose()
-        np.savetxt(os.path.join(temp_dir, angle_filename), angles, '%5.2f')
+            
+        for wl in wavelengths:
+            wavevec = 2*np.pi/wl
+            parameters = (self.target.num_spheres, self.target.index_spheres, 
+                          self.target.index_matrix)
+            np.savetxt(os.path.join(temp_dir, angle_filename), angles, '%5.2f')
+    
+            # prepare input file for fortran code
+            output_name = 'mstm_out1.dat'
 
-        # prepare input file for fortran code
-        output_name = 'mstm_out.dat'
-        # check if wavelength is tuple or scalar and set length_scale_factor
-        # accordingly 
-        if self.num_wavelengths > 1:
-            wavevec_delta = (2*np.pi/self.wavelength[1] -
-                             2*np.pi/self.wavelength[0])/(self.wavelength[2]-1)
-            wavevec_start = 2*np.pi/self.wavelength[0]
-            # add the fraction of wavevec_delta to avoid round-off error
-            wavevec_end = 2*np.pi/self.wavelength[1] + wavevec_delta/2.0
-        else:
-            wavevec_delta = 0
-            wavevec_start = 2*np.pi/self.wavelength[0]
-            wavevec_end = wavevec_start
-        wavevec_info = [wavevec_start, wavevec_end, wavevec_delta]
-        parameters = (self.target.num_spheres, self.target.index_spheres,
-                      self.target.index_matrix)
-
-        # format sphere sizes and positions
-        radii = self.target.radii
-        x = self.target.x-np.mean(self.target.x)
-        y = self.target.y-np.mean(self.target.y)
-        z = self.target.z-np.mean(self.target.z)
-        sphere_str = ''
-        for k in range(self.target.num_spheres):
-            sphere_str += '{0:.10e} {1:.10e} {2:.10e} {3:.10e}\n'.\
-                          format(radii[k], x[k], y[k], z[k])
-        # convert to Fortran scientific notation, which uses 'd' instead of 'e'
-        sphere_str = sphere_str.replace('e', 'd')
-
-        # make string substitutions to the template and write to the input file
-        template_path = os.path.join(self._module_dir, 'input_template.txt')
-        with open(template_path, 'r') as template_file:
-            template = template_file.read()
-        mstm_input = template.format(target = parameters,
-                                     spheres = sphere_str,
-                                     output_file = output_name,
-                                     azimuth_average = \
-                                     int(self.azimuthal_average),
-                                     scattering_angle_file = angle_filename,
-                                     number_scattering_angles = len(angles),
-                                     length_scale_factor = wavevec_info)
-        input_file = open(os.path.join(temp_dir, 'mstm.inp'), 'w')
-        input_file.write(mstm_input)
-        input_file.close()
-
-        # run MSTM fortran executable
-        cmd = [self._mstm_path, 'mstm.inp']
-        subprocess.check_call(cmd, cwd=temp_dir)
+            # format sphere sizes and positions
+            radii = self.target.radii
+            x = self.target.x-np.mean(self.target.x)
+            y = self.target.y-np.mean(self.target.y)
+            z = self.target.z-np.mean(self.target.z)
+            sphere_str = ''
+            for k in range(self.target.num_spheres):
+                sphere_str += '{0:.10e} {1:.10e} {2:.10e} {3:.10e}\n'.\
+                              format(radii[k], x[k], y[k], z[k])
+            # convert to Fortran scientific notation, which uses 'd' instead of 'e'
+            sphere_str = sphere_str.replace('e', 'd')
+            
+            # TODO: make changes to input variables based on fixed or random orientation
+    
+            # make string substitutions to the template and write to the input file
+            template_path = os.path.join(self._module_dir, 'input_template.txt')
+            with open(template_path, 'r') as template_file:
+                template = template_file.read()
+            mstm_input = template.format(target = parameters,
+                                         spheres = sphere_str,
+                                         output_file = output_name,
+                                         azimuth_average = \
+                                         int(self.azimuthal_average),
+                                         random_orientation = int(not self.fixed),
+                                         scattering_angle_file = angle_filename,
+                                         number_scattering_angles = len(angles),
+                                         length_scale_factor = wavevec )
+            input_file = open(os.path.join(temp_dir, 'mstm.inp'), 'w')
+            input_file.write(mstm_input)
+            input_file.close()
+    
+            # run MSTM fortran executable
+            cmd = [self._mstm_path, 'mstm.inp']
+            subprocess.check_call(cmd, cwd=temp_dir)
+            with open(os.path.join(temp_dir, output_name)) as f1:
+                with open(os.path.join(temp_dir, 'mstm_out.dat'), 'a') as f:
+                    for line in f1:
+                            f.write(line)
 
         # Read from results file
         result = MSTMResult(os.path.join(temp_dir, 'mstm_out.dat'), self)
@@ -270,44 +271,60 @@ class MSTMResult:
         with open(output_filename, "r") as resultfile:
             mstm_result = resultfile.readlines()
         scat_mat_headers = [i for i, j in enumerate(mstm_result)
-                            if j.startswith(' scattering matrix elements')]
-        qsca_headers = [i for i, j in enumerate(mstm_result)
+                            if j.startswith(' scattering matrix elements')]      
+        if mstm_calculation.fixed == False:
+            qsca_headers =  [i for i, j in enumerate(mstm_result)
+                        if j.startswith(' total ext, abs, scat efficiencies')]
+        else:
+            qsca_headers = [i for i, j in enumerate(mstm_result)
                         if j.startswith(' unpolarized total ext')]
 
         self.scattering_matrix = []
         for row in scat_mat_headers:
             # need to disable "skip_blank_lines" or the row numbers of the
             # headers won't match those in the file
+            if mstm_calculation.fixed == True:
+                nr = num_angles
+            if mstm_calculation.fixed == False:
+                nr = num_angles + 1 # random orientation calculations add a blank line after headers
             dataframe = pd.read_table(output_filename, header = row + 1,
-                                      nrows = num_angles,
+                                      nrows = nr,
                                       delim_whitespace = True,
                                       skip_blank_lines = False)
+            if mstm_calculation.fixed == False:
+                dataframe.drop(dataframe.index[[0]], inplace = True)
             self.scattering_matrix.append(dataframe)
 
         self.efficiencies = []
         self.asymmetry = []
         for row in qsca_headers:
-            dataframe = pd.DataFrame(columns=['qext', 'qabs', 'qsca'],
-                                     index=['unpolarized', 'par', 'perp'])
-            # read unpolarized values first; this line also contains g
-            [qext, qabs, qsca, g] = [float(num) for num in
-                                     mstm_result[row+1].split()]
-            dataframe.loc['unpolarized'] = [qsca, qabs, qsca]
-            dataframe.loc['par'] = [float(num) for num in
-                                    mstm_result[row+3].split()]
-            dataframe.loc['perp'] = [float(num) for num in
-                                     mstm_result[row+5].split()]
+            if mstm_calculation.fixed == True:
+                dataframe = pd.DataFrame(columns=['qext', 'qabs', 'qsca'],
+                                         index=['unpolarized', 'par', 'perp'])
+                # read unpolarized values first; this line also contains g
+                [qext, qabs, qsca, g] = [float(num) for num in
+                                         mstm_result[row+1].split()]
+                dataframe.loc['unpolarized'] = [qsca, qabs, qsca]
+                dataframe.loc['par'] = [float(num) for num in
+                                        mstm_result[row+3].split()]
+                dataframe.loc['perp'] = [float(num) for num in
+                                         mstm_result[row+5].split()]
+            if mstm_calculation.fixed == False:
+                dataframe = pd.DataFrame(columns=['qext', 'qabs', 'qsca'],
+                                         index=['unpolarized'])
+                # read unpolarized values first; this line also contains g
+                [qext, qabs, qsca, g] = [float(num) for num in
+                                         mstm_result[row+1].split()]
+                dataframe.loc['unpolarized'] = [qsca, qabs, qsca]
             self.efficiencies.append(dataframe)
             self.asymmetry.append(g)
 
-        if mstm_calculation.num_wavelengths > 1:
-            wavevec_start = 2*np.pi/self.mstm_calculation.wavelength[0]
-            wavevec_end = 2*np.pi/self.mstm_calculation.wavelength[1]
-            wavevec = np.linspace(wavevec_start, wavevec_end,
-                                  self.mstm_calculation.num_wavelengths)
-            self.wavelength = 2*np.pi/wavevec
+        if self.mstm_calculation.num_wavelengths > 1:
+            self.wavelength = np.linspace(self.mstm_calculation.wavelength[0], 
+                                          self.mstm_calculation.wavelength[1], 
+                                          self.mstm_calculation.num_wavelengths)
         else:
-            self.wavelength = np.array([mstm_calculation.wavelength])
+            self.wavelength = np.array([self.mstm_calculation.wavelength])
 
 
     def calc_intensity(self, stokes):
@@ -397,6 +414,26 @@ class MSTMResult:
                                                    theta_max*np.pi/180)
 
         return cross_section
+        
+    def calc_reflectance(self, stokes):
+        """
+        Calculation of the reflectance as a function of wavelength.
+        Valid only for assemblies where the volume mean radius is greater than 
+        the incident wavelength
+        See page 122 of Bohren-Huffman for derivation of formula
+    
+        Parameters
+        ----------
+        stokes: stokes vector of incident light
+
+        Returns
+        -------
+        numpy array:
+        R
+        """
+        vm_radius = self.mstm_calculation.target.volmean_radius()
+        R = self.calc_cross_section(stokes, 90, 180)/(np.pi*vm_radius**2)
+        return R
 
 class Target:
     """
