@@ -104,3 +104,27 @@ def test_three_spheres():
     refl_csca = result.calc_cross_section(np.array([1, 0, 0, 0]), 90., 180.)
     assert_almost_equal(total_csca[0], 0.033904226206668324, decimal = 3) # compare result with multisphere
     assert_almost_equal(refl_csca[0], 0.00024189819424174622, decimal = 5) # compare result with multisphere
+
+def test_random_orient_one_sphere():
+    """
+    Tests results for 1 sphere of random orientation against itself from a previous run
+    """
+     # make target object
+    xpos = [0]
+    ypos = [0]
+    zpos = [0]
+    radii = [0.125]
+    n_matrix = 1.54
+    n_spheres = 1.33
+    target = mstm.Target(xpos, ypos, zpos, radii, n_matrix, n_spheres)
+    wavelength = 0.4, 0.5, 2
+    theta = np.linspace(0, 180, 181)
+
+    # calculate the cross section for random polarization
+    calculation = mstm.MSTMCalculation(target, wavelength, theta, phi = None, fixed = False)
+    result = calculation.run()
+    total_csca = result.calc_cross_section(np.array([1, 0, 0, 0]), 0., 180.)
+    refl_csca = result.calc_cross_section(np.array([1, 0, 0, 0]), 90., 180.)
+    assert_almost_equal(total_csca[0], 0.01134861, decimal = 5) # compare result with number from previous run
+    assert_almost_equal(refl_csca[0], 8.66921190e-05, decimal = 5) # compare result with number from previous run
+

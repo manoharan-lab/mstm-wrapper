@@ -97,12 +97,10 @@ class MSTMCalculation:
         self.theta = theta
         self.phi = phi
         self.fixed = fixed
-        
         if self.phi is None:
             self.azimuthal_average = True
         else:
             self.azimuthal_average = False
-
         # check if wavelength is tuple (has "len" attribute) or float
         if hasattr(self.wavelength, "__len__"):
             # if tuple, the third component specifies the number of wavelengths
@@ -147,7 +145,7 @@ class MSTMCalculation:
         if self.num_wavelengths > 1:
             wavelengths = np.linspace(self.wavelength[0], self.wavelength[1], self.num_wavelengths)
         else:
-            wavelengths = np.array(self.wavelength)
+            wavelengths = np.array([self.wavelength])
 
         # put input files in a temp directory
         temp_dir = tempfile.mkdtemp()
@@ -185,8 +183,6 @@ class MSTMCalculation:
                               format(radii[k], x[k], y[k], z[k])
             # convert to Fortran scientific notation, which uses 'd' instead of 'e'
             sphere_str = sphere_str.replace('e', 'd')
-            
-            # TODO: make changes to input variables based on fixed or random orientation
     
             # make string substitutions to the template and write to the input file
             template_path = os.path.join(self._module_dir, 'input_template.txt')
@@ -369,7 +365,7 @@ class MSTMResult:
             # label the column in the dataframe
             intensities.name = 'intensity'
 
-            if self.mstm_calculation.azimuthal_average is True:
+            if self.mstm_calculation.azimuthal_average is True or self.mstm_calculation.fixed is False:
                 dataframe = pd.concat([mat['theta'], intensities], axis = 1)
             else:
                 dataframe = pd.concat([mat['theta'], mat['phi'], intensities],
@@ -401,9 +397,9 @@ class MSTMResult:
         """
         # TODO : should check to make sure theta_min and theta_max are within
         # the range of theta that has been calculated
-        if self.mstm_calculation.azimuthal_average is False:
-            raise ValueError("This calculation requires azimuthal averaging;\n"+
-                             "Make sure phi=None in the MSTM calculation.")
+#        if self.mstm_calculation.azimuthal_average is False:
+#            raise ValueError("This calculation requires azimuthal averaging;\n"+
+#                             "Make sure phi=None in the MSTM calculation.")
         num_wavelengths = self.mstm_calculation.num_wavelengths
         intensity = self.calc_intensity(stokes)
         cross_section = np.zeros(num_wavelengths)
