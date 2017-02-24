@@ -117,7 +117,7 @@ class MSTMCalculation:
         if mstm_path is None:
             # search in the path to the current module
             mstm_path = shutil.which(mstm_executable, path=module_dir)
-            #mstm_path = module_dir + '/mstm.exe' # temporary fix for directory problems
+            mstm_path = module_dir + '/mstm.exe' # temporary fix for directory problems
         if mstm_path is None:
             raise RuntimeError("MSTM executable" + " \'" + mstm_executable +
                                "\' " + "not found")
@@ -174,9 +174,9 @@ class MSTMCalculation:
 
             # format sphere sizes and positions
             radii = self.target.radii
-            x = self.target.x-np.mean(self.target.x)
-            y = self.target.y-np.mean(self.target.y)
-            z = self.target.z-np.mean(self.target.z)
+            x = self.target.x
+            y = self.target.y
+            z = self.target.z
             sphere_str = ''
             for k in range(self.target.num_spheres):
                 sphere_str += '{0:.10e} {1:.10e} {2:.10e} {3:.10e}\n'.\
@@ -352,7 +352,7 @@ class MSTMResult:
             # cross-section.
             qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
             csca = qsca*geometric_cross_sec
-            # we need to divide by the matrix index for the results to agree
+            # we need to divide by the matrix refractive index for the results to agree
             # with Mie theory for a single spheres. It's not clear why this
             # factor has to appear here.
             prefactor = csca/(2.0*self.mstm_calculation.target.index_matrix)
@@ -452,23 +452,42 @@ class Target:
         refractive index of medium surrounding spheres
     index_spheres : array
         refractive index of spheres
+    photonic_ball_radius : float
+        radius of sphere encompassing the assembly of spheres. Default set to 
+        None for asssemblies 
+        
 
     Notes
     -----
-    x, y, z, and radii must be in same units, and must also match units of
-    wavelength of incident light
+    x, y, z, radii, and photonic_ball_radius must be in same units, and must 
+    also match units of wavelength of incident light
     """
-    def __init__(self, x, y, z, radii, index_matrix, index_spheres):
+    def __init__(self, x, y, z, radii, index_matrix, index_spheres, 
+                 photonic_ball_radius = None):
         """
         Constructor for object of the Target class.
         """
-        self.num_spheres = len(x)
-        self.x = x
-        self.y = y
-        self.z = z
-        self.radii = radii
+        x = x-np.mean(x)
+        y = y-np.mean(y)
+        z = z-np.mean(z)
         self.index_matrix = index_matrix
         self.index_spheres = index_spheres
+        self.photonic_ball_radius = photonic_ball_radius
+    
+        if self.photonic_ball_radius != None:
+            index = np.where(x**2 + y**2 + z**2 < self.photonic_ball_radius**2)
+            self.x = x[index]
+            self.y = y[index]
+            self.z = z[index]
+            self.radii = radii[index]
+
+        else:
+            self.x = x
+            self.y = y
+            self.z = z
+            self.radii = radii
+            
+        self.num_spheres = len(self.x)
 
     def volmean_radius(self):
         """
@@ -476,3 +495,5 @@ class Target:
         the (dimensional) cross-sections from the efficiencies.
         """
         return np.power(np.sum(np.power(self.radii, 3)), 1./3)
+    
+    
