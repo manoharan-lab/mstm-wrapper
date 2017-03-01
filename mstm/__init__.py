@@ -117,7 +117,7 @@ class MSTMCalculation:
         if mstm_path is None:
             # search in the path to the current module
             mstm_path = shutil.which(mstm_executable, path=module_dir)
-            mstm_path = module_dir + '/mstm.exe' # temporary fix for directory problems
+            #mstm_path = module_dir + '/mstm.exe' # temporary fix for directory problems
         if mstm_path is None:
             raise RuntimeError("MSTM executable" + " \'" + mstm_executable +
                                "\' " + "not found")
@@ -452,18 +452,18 @@ class Target:
         refractive index of medium surrounding spheres
     index_spheres : array
         refractive index of spheres
-    photonic_ball_radius : float
+    assembly_radius : float
         radius of sphere encompassing the assembly of spheres. Default set to 
         None for asssemblies 
         
 
     Notes
     -----
-    x, y, z, radii, and photonic_ball_radius must be in same units, and must 
+    x, y, z, radii, and assembly_radius must be in same units, and must 
     also match units of wavelength of incident light
     """
     def __init__(self, x, y, z, radii, index_matrix, index_spheres, 
-                 photonic_ball_radius = None):
+                 assembly_radius = None):
         """
         Constructor for object of the Target class.
         """
@@ -472,10 +472,10 @@ class Target:
         z = z-np.mean(z)
         self.index_matrix = index_matrix
         self.index_spheres = index_spheres
-        self.photonic_ball_radius = photonic_ball_radius
+        self.assembly_radius = assembly_radius
     
-        if self.photonic_ball_radius != None:
-            index = np.where(x**2 + y**2 + z**2 < self.photonic_ball_radius**2)
+        if self.assembly_radius != None:
+            index = np.where(x**2 + y**2 + z**2 < self.assembly_radius**2)
             self.x = x[index]
             self.y = y[index]
             self.z = z[index]
