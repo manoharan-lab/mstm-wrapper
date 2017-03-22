@@ -282,13 +282,15 @@ class MSTMResult:
             if mstm_calculation.fixed == True:
                 nr = num_angles
             if mstm_calculation.fixed == False:
-                nr = num_angles + 1 # random orientation calculations add a blank line after headers
+                nr = num_angles + 1 # random orientation calculations add a blank line after headers in linux
             dataframe = pd.read_table(output_filename, header = row + 1,
                                       nrows = nr,
                                       delim_whitespace = True,
                                       skip_blank_lines = False)
-            if mstm_calculation.fixed == False:
-                dataframe.drop(dataframe.index[[0]], inplace = True)
+
+            dataframe = dataframe[pd.notnull(dataframe['14'])]
+            dataframe = dataframe.astype(float)
+
             self.scattering_matrix.append(dataframe)
 
         self.efficiencies = []
