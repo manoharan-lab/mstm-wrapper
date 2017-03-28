@@ -162,13 +162,13 @@ class MSTMCalculation:
         phitot = np.tile(phi, len(self.theta))
         angles = np.vstack((thetatot, phitot))
         angles = angles.transpose()
-            
+
         for wl in wavelengths:
             wavevec = 2*np.pi/wl
-            parameters = (self.target.num_spheres, self.target.index_spheres, 
+            parameters = (self.target.num_spheres, self.target.index_spheres,
                           self.target.index_matrix)
             np.savetxt(os.path.join(temp_dir, angle_filename), angles, '%5.2f')
-    
+
             # prepare input file for fortran code
             output_name = 'mstm_out1.dat'
 
@@ -183,7 +183,7 @@ class MSTMCalculation:
                               format(radii[k], x[k], y[k], z[k])
             # convert to Fortran scientific notation, which uses 'd' instead of 'e'
             sphere_str = sphere_str.replace('e', 'd')
-    
+
             # make string substitutions to the template and write to the input file
             template_path = os.path.join(self._module_dir, 'input_template.txt')
             with open(template_path, 'r') as template_file:
@@ -200,7 +200,7 @@ class MSTMCalculation:
             input_file = open(os.path.join(temp_dir, 'mstm.inp'), 'w')
             input_file.write(mstm_input)
             input_file.close()
-    
+
             # run MSTM fortran executable
             cmd = [self._mstm_path, 'mstm.inp']
             subprocess.check_call(cmd, cwd=temp_dir)
@@ -267,7 +267,7 @@ class MSTMResult:
         with open(output_filename, "r") as resultfile:
             mstm_result = resultfile.readlines()
         scat_mat_headers = [i for i, j in enumerate(mstm_result)
-                            if j.startswith(' scattering matrix elements')]      
+                            if j.startswith(' scattering matrix elements')]
         if mstm_calculation.fixed == False:
             qsca_headers =  [i for i, j in enumerate(mstm_result)
                         if j.startswith(' total ext, abs, scat efficiencies')]
@@ -282,7 +282,7 @@ class MSTMResult:
             if mstm_calculation.fixed == True:
                 nr = num_angles
             if mstm_calculation.fixed == False:
-                nr = num_angles + 1 # random orientation calculations add a blank line after headers in linux
+                nr = num_angles + 1 # random orientation calculations add a blank line after headers
             dataframe = pd.read_table(output_filename, header = row + 1,
                                       nrows = nr,
                                       delim_whitespace = True,
@@ -318,8 +318,8 @@ class MSTMResult:
             self.asymmetry.append(g)
 
         if self.mstm_calculation.num_wavelengths > 1:
-            self.wavelength = np.linspace(self.mstm_calculation.wavelength[0], 
-                                          self.mstm_calculation.wavelength[1], 
+            self.wavelength = np.linspace(self.mstm_calculation.wavelength[0],
+                                          self.mstm_calculation.wavelength[1],
                                           self.mstm_calculation.num_wavelengths)
         else:
             self.wavelength = np.array([self.mstm_calculation.wavelength])
@@ -354,9 +354,9 @@ class MSTMResult:
             # cross-section.
             qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
             csca = qsca*geometric_cross_sec
-            # we need to divide by the matrix refractive index for the results to agree
-            # with Mie theory for a single spheres. It's not clear why this
-            # factor has to appear here.
+            # we need to divide by the matrix refractive index for the results
+            # to agree with Mie theory for a single spheres. It's not clear why
+            # this factor has to appear here.
             prefactor = csca/(2.0*self.mstm_calculation.target.index_matrix)
 
             mat = self.scattering_matrix[i]
@@ -367,7 +367,8 @@ class MSTMResult:
             # label the column in the dataframe
             intensities.name = 'intensity'
 
-            if self.mstm_calculation.azimuthal_average is True or self.mstm_calculation.fixed is False:
+            if (self.mstm_calculation.azimuthal_average is True or
+                self.mstm_calculation.fixed is False):
                 dataframe = pd.concat([mat['theta'], intensities], axis = 1)
             else:
                 dataframe = pd.concat([mat['theta'], mat['phi'], intensities],
@@ -379,10 +380,10 @@ class MSTMResult:
     def calc_cross_section(self, stokes, theta_min, theta_max):
         """
         Calculate the cross section from wavelength.
-        If theta = 0-180, the cross section calculated is the total
-        cross section
-        If theta = 90-180, the cross section caclulated is the
-        reflection cross section, which is proportional to the reflectivity
+        If, for example, theta = 0-180, the cross section calculated is the
+        total cross section. If theta = 90-180, the cross section calculated is
+        the reflection cross section, which is proportional to the
+        reflectivity.
 
         Parameters
         ----------
@@ -414,14 +415,13 @@ class MSTMResult:
                                                    theta_max*np.pi/180)
 
         return cross_section
-        
+
     def calc_reflectance(self, stokes):
         """
         Calculation of the reflectance as a function of wavelength.
         Valid only for assemblies where the volume mean radius is greater than 
         the incident wavelength
-        See page 122 of Bohren-Huffman for derivation of formula
-    
+
         Parameters
         ----------
         stokes: stokes vector of incident light
@@ -430,6 +430,11 @@ class MSTMResult:
         -------
         numpy array:
         R
+
+        Notes
+        -----
+        See page 122 of Bohren-Huffman for derivation of formula
+
         """
         vm_radius = self.mstm_calculation.target.volmean_radius()
         R = self.calc_cross_section(stokes, 90, 180)/(np.pi*vm_radius**2)
@@ -497,5 +502,3 @@ class Target:
         the (dimensional) cross-sections from the efficiencies.
         """
         return np.power(np.sum(np.power(self.radii, 3)), 1./3)
-    
-    
