@@ -34,7 +34,6 @@ Based on work that was originally part of HoloPy
 """
 
 import subprocess
-import tempfile
 import os
 import shutil
 import numpy as np
@@ -73,7 +72,7 @@ class MSTMCalculation:
         and run the calculation
     """
     def __init__(self, target, wavelength, theta, phi=None, fixed=True,
-                 mstm_executable = "mstm"):
+                 mstm_executable = "mstm.exe"):
         """
         Constructor for MSTMCalculation object.  Searches for the executable in
         the user's path and the package directory.
@@ -117,7 +116,7 @@ class MSTMCalculation:
         if mstm_path is None:
             # search in the path to the current module
             mstm_path = shutil.which(mstm_executable, path=module_dir)
-            #mstm_path = module_dir + '/mstm.exe' # temporary fix for directory problems
+           # mstm_path = os.path.join(module_dir, mstm_executable) # temporary fix for directory problems
         if mstm_path is None:
             raise RuntimeError("MSTM executable" + " \'" + mstm_executable +
                                "\' " + "not found")
@@ -126,7 +125,7 @@ class MSTMCalculation:
         self._mstm_path = mstm_path
         self._module_dir = module_dir
 
-    def run(self, delete=True):
+    def run(self, delete=True, path=None):
         """
         Run the calculation.
 
@@ -136,6 +135,8 @@ class MSTMCalculation:
             True if the temporary directory containing the generated input and
             output files should be deleted after running (default). Setting
             this to False might be useful in debugging.
+        path: None or string (optional)
+            If None, files 
 
         Returns
         -------
@@ -147,10 +148,10 @@ class MSTMCalculation:
         else:
             wavelengths = np.array([self.wavelength])
 
-        # put input files in a temp directory
-        temp_dir = tempfile.mkdtemp()
-        current_dir = os.getcwd()
-        os.chdir(temp_dir)
+        # write files in module directory
+        module_dir = self._module_dir
+        orig_dir = os.getcwd()
+        os.chdir(module_dir)
 
         # make angles file
         angle_filename = 'angles.dat'
@@ -167,7 +168,7 @@ class MSTMCalculation:
             wavevec = 2*np.pi/wl
             parameters = (self.target.num_spheres, self.target.index_spheres,
                           self.target.index_matrix)
-            np.savetxt(os.path.join(temp_dir, angle_filename), angles, '%5.2f')
+            np.savetxt(os.path.join(module_dir, angle_filename), angles, '%5.2f')
 
             # prepare input file for fortran code
             output_name = 'mstm_out1.dat'
@@ -185,7 +186,7 @@ class MSTMCalculation:
             sphere_str = sphere_str.replace('e', 'd')
 
             # make string substitutions to the template and write to the input file
-            template_path = os.path.join(self._module_dir, 'input_template.txt')
+            template_path = os.path.join(module_dir, 'input_template.txt')
             with open(template_path, 'r') as template_file:
                 template = template_file.read()
             mstm_input = template.format(target = parameters,
@@ -197,25 +198,29 @@ class MSTMCalculation:
                                          scattering_angle_file = angle_filename,
                                          number_scattering_angles = len(angles),
                                          length_scale_factor = wavevec )
-            input_file = open(os.path.join(temp_dir, 'mstm.inp'), 'w')
+            input_file = open(os.path.join(module_dir, 'mstm.inp'), 'w')
             input_file.write(mstm_input)
             input_file.close()
 
             # run MSTM fortran executable
             cmd = [self._mstm_path, 'mstm.inp']
-            subprocess.check_call(cmd, cwd=temp_dir)
-            with open(os.path.join(temp_dir, output_name)) as f1:
-                with open(os.path.join(temp_dir, 'mstm_out.dat'), 'a') as f:
+            subprocess.check_call(cmd, cwd=module_dir)
+            with open(os.path.join(module_dir, output_name)) as f1:
+                with open(os.path.join(module_dir, 'mstm_out.dat'), 'a') as f:
                     for line in f1:
                             f.write(line)
 
         # Read from results file
-        result = MSTMResult(os.path.join(temp_dir, 'mstm_out.dat'), self)
+        result = MSTMResult(os.path.join(module_dir, 'mstm_out.dat'), self)
 
-        # delete temp files
-        os.chdir(current_dir)
+        # delete temp files and change back to original directory
+        os.chdir(orig_dir)
         if delete:
-            shutil.rmtree(temp_dir)
+            os.remove(os.path.join(module_dir, 'mstm_out.dat'))
+            os.remove(os.path.join(module_dir, 'mstm_out1.dat'))
+            os.remove(os.path.join(module_dir, 'mstm.inp'))
+            os.remove(os.path.join(module_dir, 'angles.dat'))
+            os.remove(os.path.join(module_dir, 'tm_default.dat'))
 
         return result
 
@@ -263,7 +268,6 @@ class MSTMResult:
             num_angles = len(mstm_calculation.theta)*len(mstm_calculation.phi)
         else:
             num_angles = len(mstm_calculation.theta)
-
         with open(output_filename, "r") as resultfile:
             mstm_result = resultfile.readlines()
         scat_mat_headers = [i for i, j in enumerate(mstm_result)
@@ -277,17 +281,19 @@ class MSTMResult:
 
         self.scattering_matrix = []
         for row in scat_mat_headers:
+            #print(row)
             # need to disable "skip_blank_lines" or the row numbers of the
             # headers won't match those in the file
             if mstm_calculation.fixed == True:
                 nr = num_angles
             if mstm_calculation.fixed == False:
-                nr = num_angles + 1 # random orientation calculations add a blank line after headers
-            dataframe = pd.read_table(output_filename, header = row + 1,
-                                      nrows = nr,
+                nr = num_angles #+ 1 # random orientation calculations add a blank line after headers
+            dataframe = pd.read_table(output_filename,
+                                      nrows = nr, header = row + 1, 
                                       delim_whitespace = True,
-                                      skip_blank_lines = False)
-
+                                      skip_blank_lines = False,
+                                      error_bad_lines=False,
+                                      warn_bad_lines=False)
             dataframe = dataframe[pd.notnull(dataframe['14'])]
             dataframe = dataframe.astype(float)
 
