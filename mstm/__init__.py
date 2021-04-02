@@ -125,7 +125,7 @@ class MSTMCalculation:
         self._mstm_path = mstm_path
         self._module_dir = module_dir
 
-    def run(self, delete=True, path=None):
+    def run(self, delete=True):
         """
         Run the calculation.
 
@@ -135,8 +135,6 @@ class MSTMCalculation:
             True if the temporary directory containing the generated input and
             output files should be deleted after running (default). Setting
             this to False might be useful in debugging.
-        path: None or string (optional)
-            If None, files 
 
         Returns
         -------
