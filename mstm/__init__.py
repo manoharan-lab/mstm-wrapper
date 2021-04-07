@@ -162,10 +162,10 @@ class MSTMCalculation:
         angles = np.vstack((thetatot, phitot))
         angles = angles.transpose()
 
-        for wl in wavelengths:
-            wavevec = 2*np.pi/wl
-            parameters = (self.target.num_spheres, self.target.index_spheres,
-                          self.target.index_matrix)
+        for i in range(wavelengths.size):
+            wavevec = 2*np.pi/wavelengths[i]
+            parameters = (self.target.num_spheres, self.target.index_spheres[i],
+                          self.target.index_matrix[i])
             np.savetxt(os.path.join(module_dir, angle_filename), angles, '%5.2f')
 
             # prepare input file for fortran code
@@ -218,7 +218,8 @@ class MSTMCalculation:
             os.remove(os.path.join(module_dir, 'mstm_out1.dat'))
             os.remove(os.path.join(module_dir, 'mstm.inp'))
             os.remove(os.path.join(module_dir, 'angles.dat'))
-            os.remove(os.path.join(module_dir, 'tm_default.dat'))
+            if os.path.exists(os.path.join(module_dir, 'tm_default.dat')):
+                os.remove(os.path.join(module_dir, 'tm_default.dat'))
 
         return result
 
@@ -279,7 +280,6 @@ class MSTMResult:
 
         self.scattering_matrix = []
         for row in scat_mat_headers:
-            #print(row)
             # need to disable "skip_blank_lines" or the row numbers of the
             # headers won't match those in the file
             if mstm_calculation.fixed == True:
@@ -361,9 +361,9 @@ class MSTMResult:
             # we need to divide by the matrix refractive index for the results
             # to agree with Mie theory for a single spheres. It's not clear why
             # this factor has to appear here.
-            prefactor = csca/(2.0*self.mstm_calculation.target.index_matrix)
+            prefactor = csca/(2.0*self.mstm_calculation.target.index_matrix[i])
 
-            mat = self.scattering_matrix[i]
+            mat = self.scattering_matrix[i]            
             intensities = prefactor*(mat['11']*stokes[0] +
                                      mat['12']*stokes[1] +
                                      mat['13']*stokes[2] +
@@ -419,8 +419,79 @@ class MSTMResult:
                                                    theta_max*np.pi/180)
 
         return cross_section
+        
+        
+    def calc_phase_function(self, stokes=np.array([1, 0, 0, 0])):
+        """
+        Calculate phase function, given the incident Stokes vector
 
-    def calc_reflectance(self, stokes):
+        Parameters
+        ----------
+        stokes : array (optional)
+            incident Stokes vector (one-dimensional, 4 elements: I, Q, U, V)
+            default value is for unpolarized light
+
+        Returns
+        -------
+        phase_func : array [shape: wavelengths.size, angles.size]
+            the phase function is the differential cross section, normalized
+            by the total cross section  
+        """
+        
+        if (self.mstm_calculation.azimuthal_average is True or
+                self.mstm_calculation.fixed is False):
+                    phase_func = np.zeros((self.mstm_calculation.num_wavelengths,
+                                           len(self.mstm_calculation.theta)))
+        else:   
+                    phase_func = np.zeros((self.mstm_calculation.num_wavelengths,
+                                           len(self.mstm_calculation.theta), 
+                                           len(self.mstm_calculation.phi)))
+
+        for i in range(self.mstm_calculation.num_wavelengths):
+            mat = self.scattering_matrix[i]
+            S11 = mat['11']*stokes[0] 
+            
+
+            if (self.mstm_calculation.azimuthal_average is True or
+                self.mstm_calculation.fixed is False):
+                phase_func[i,:]= S11/np.sum(S11)
+            else:
+                phase_func[i,:,:]= S11/np.sum(S11)
+                
+        return phase_func
+        
+    def calc_total_csca(self, stokes=np.array([1, 0, 0, 0])):
+        """
+        Calculate total scattering cross section, given the incident Stokes vector
+
+        Parameters
+        ----------
+        stokes : array (optional)
+            incident Stokes vector (one-dimensional, 4 elements: I, Q, U, V)
+            default value is for unpolarized light
+
+        Returns
+        -------
+        csca: array [shape: wavelengths.size]
+        total scattering cross section
+            
+        """
+        csca = np.zeros(self.mstm_calculation.num_wavelengths)
+        
+        # calculate volume mean radius and geometrical cross-section
+        vm_radius = self.mstm_calculation.target.volmean_radius()
+        geometric_cross_sec = np.pi*vm_radius**2
+
+        for i in range(self.mstm_calculation.num_wavelengths):
+            # see Bohren and Huffman sec 3.4 page 73) for relation between 
+            # scattering efficiency and total scattering cross section
+            qsca = self.efficiencies[i].loc['unpolarized', 'qsca']
+            csca[i] = qsca*geometric_cross_sec
+
+        return csca
+        
+
+    def calc_reflectance(self, stokes=np.array([1, 0, 0, 0])):
         """
         Calculation of the reflectance as a function of wavelength.
         Valid only for assemblies where the volume mean radius is greater than 
@@ -428,12 +499,12 @@ class MSTMResult:
 
         Parameters
         ----------
-        stokes: stokes vector of incident light
+        stokes: stokes vector of incident light (optional)
 
         Returns
         -------
-        numpy array:
-        R
+        R: numpy array
+        Reflectance as a function of wavelength
 
         Notes
         -----
