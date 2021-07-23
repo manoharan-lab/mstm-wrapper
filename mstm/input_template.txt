@@ -48,7 +48,7 @@ max_number_iterations
 store_translation_matrix
 0
 sm_number_processors
-10
+{num_processors}
 near_field_translation_distance
 -1
 iterations_per_correction
@@ -102,7 +102,7 @@ plane_wave_epsilon
 calculate_t_matrix
 1
 t_matrix_file
-tm_default.dat
+{t_matrix_file}
 t_matrix_convergence_epsilon
 1.d-7
 sphere_sizes_and_positions

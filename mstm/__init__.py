@@ -150,9 +150,23 @@ class MSTMCalculation:
         module_dir = self._module_dir
         orig_dir = os.getcwd()
         os.chdir(module_dir)
+        
+        # choose file names
+        if wavelengths.size == 1:
+            output_name = 'mstm_out1_' + str(int(1000*wavelengths[0])) +'.dat'
+            output_name_wl = 'mstm_out_'  + str(int(1000*wavelengths[0])) + '.dat'
+            input_name = 'mstm_' + str(int(1000*wavelengths[0])) + '.inp'
+            angle_filename = 'angles_'+ str(int(1000*wavelengths[0])) + '.dat'
+            tm_output_name = 'tm_default_'  + str(int(1000*wavelengths[0])) + '.dat'
+        else:
+            output_name = 'mstm_out1.dat'
+            tm_output_name = 'tm_default.dat'
+            output_name_wl = 'mstm_out.dat'
+            input_name = 'mstm.inp'
+            angle_filename = 'angles.dat'
+        
 
         # make angles file
-        angle_filename = 'angles.dat'
         if self.azimuthal_average is True:
             phi = np.array([0.0])
         else:
@@ -167,10 +181,7 @@ class MSTMCalculation:
             parameters = (self.target.num_spheres, self.target.index_spheres[i],
                           self.target.index_matrix[i])
             np.savetxt(os.path.join(module_dir, angle_filename), angles, '%5.2f')
-
-            # prepare input file for fortran code
-            output_name = 'mstm_out1.dat'
-
+                
             # format sphere sizes and positions
             radii = self.target.radii
             x = self.target.x
@@ -187,6 +198,110 @@ class MSTMCalculation:
             template_path = os.path.join(module_dir, 'input_template.txt')
             with open(template_path, 'r') as template_file:
                 template = template_file.read()
+            # prepare input file for fortran code
+            mstm_input = template.format(target = parameters,
+                                         spheres = sphere_str,
+                                         output_file = output_name,
+                                         t_matrix_file = tm_output_name,
+                                         azimuth_average = \
+                                         int(self.azimuthal_average),
+                                         random_orientation = int(not self.fixed),
+                                         scattering_angle_file = angle_filename,
+                                         number_scattering_angles = len(angles),
+                                         length_scale_factor = wavevec,
+                                         num_processors = 1)
+            input_file = open(os.path.join(module_dir, input_name), 'w')
+            input_file.write(mstm_input)
+            input_file.close()
+
+            # run MSTM fortran executable
+            cmd = [self._mstm_path, input_name]
+            subprocess.check_call(cmd, cwd=module_dir)
+            with open(os.path.join(module_dir, output_name)) as f1:
+                with open(os.path.join(module_dir, output_name_wl), 'a') as f:
+                    for line in f1:
+                            f.write(line)
+
+        # Read from results file
+        result = MSTMResult(os.path.join(module_dir, output_name_wl), self)
+
+        # delete temp files and change back to original directory
+        os.chdir(orig_dir)
+        if delete:
+            os.remove(os.path.join(module_dir, output_name_wl))
+            os.remove(os.path.join(module_dir, output_name))
+            os.remove(os.path.join(module_dir, input_name))
+            os.remove(os.path.join(module_dir, angle_filename))
+            if os.path.exists(os.path.join(module_dir, tm_output_name)):
+                os.remove(os.path.join(module_dir, tm_output_name))
+
+        return result
+        
+    def prerun_mpi(self, num_processors=10):
+        """
+        When running with mpi enabled, executable should be called from 
+        the command line. This function prepares the input file, but
+        does not run the calculation
+
+        """
+        if self.num_wavelengths > 1:
+            wavelengths = np.linspace(self.wavelength[0], self.wavelength[1], self.num_wavelengths)
+        else:
+            wavelengths = np.array([self.wavelength])
+
+        # write files in module directory
+        module_dir = self._module_dir
+        orig_dir = os.getcwd()
+        os.chdir(module_dir)
+        
+        # choose file names
+        if wavelengths.size == 1:
+            output_name = 'mstm_out1_' + str(int(1000*wavelengths[0])) +'.dat'
+            output_name_wl = 'mstm_out_'  + str(int(1000*wavelengths[0])) + '.dat'
+            input_name = 'mstm_' + str(int(1000*wavelengths[0])) + '.inp'
+            angle_filename = 'angles_'+ str(int(1000*wavelengths[0])) + '.dat'
+            tm_output_name = 'tm_default_'  + str(int(1000*wavelengths[0])) + '.dat'
+        else:
+            output_name = 'mstm_out1.dat'
+            output_name_wl = 'mstm_out.dat'
+            input_name = 'mstm.inp'
+            angle_filename = 'angles.dat'
+            tm_output_name = 'tm_default.dat'
+        
+
+        # make angles file
+        if self.azimuthal_average is True:
+            phi = np.array([0.0])
+        else:
+            phi = self.phi
+        thetatot = np.repeat(self.theta, len(phi))
+        phitot = np.tile(phi, len(self.theta))
+        angles = np.vstack((thetatot, phitot))
+        angles = angles.transpose()
+
+        for i in range(wavelengths.size):
+            wavevec = 2*np.pi/wavelengths[i]
+            parameters = (self.target.num_spheres, self.target.index_spheres[i],
+                          self.target.index_matrix[i])
+            np.savetxt(os.path.join(module_dir, angle_filename), angles, '%5.2f')
+                
+            # format sphere sizes and positions
+            radii = self.target.radii
+            x = self.target.x
+            y = self.target.y
+            z = self.target.z
+            sphere_str = ''
+            for k in range(self.target.num_spheres):
+                sphere_str += '{0:.10e} {1:.10e} {2:.10e} {3:.10e}\n'.\
+                              format(radii[k], x[k], y[k], z[k])
+            # convert to Fortran scientific notation, which uses 'd' instead of 'e'
+            sphere_str = sphere_str.replace('e', 'd')
+
+            # make string substitutions to the template and write to the input file
+            template_path = os.path.join(module_dir, 'input_template.txt')
+            with open(template_path, 'r') as template_file:
+                template = template_file.read()
+            # prepare input file for fortran code
             mstm_input = template.format(target = parameters,
                                          spheres = sphere_str,
                                          output_file = output_name,
@@ -194,33 +309,74 @@ class MSTMCalculation:
                                          int(self.azimuthal_average),
                                          random_orientation = int(not self.fixed),
                                          scattering_angle_file = angle_filename,
+                                         t_matrix_file = tm_output_name,
                                          number_scattering_angles = len(angles),
-                                         length_scale_factor = wavevec )
-            input_file = open(os.path.join(module_dir, 'mstm.inp'), 'w')
+                                         length_scale_factor = wavevec,
+                                         num_processors = num_processors)
+            input_file = open(os.path.join(module_dir, input_name), 'w')
             input_file.write(mstm_input)
             input_file.close()
+            
 
-            # run MSTM fortran executable
-            cmd = [self._mstm_path, 'mstm.inp']
-            subprocess.check_call(cmd, cwd=module_dir)
+    def postrun_mpi(self, delete=True):
+        """
+        Read the results from the output file and save as MSTM results object.
+
+        Parameters
+        ----------
+        delete : boolean (optional)
+            True if the temporary directory containing the generated input and
+            output files should be deleted after running (default). Setting
+            this to False might be useful in debugging.
+
+        Returns
+        -------
+        MSTMresult object
+            results of calculation
+        """
+        if self.num_wavelengths > 1:
+            wavelengths = np.linspace(self.wavelength[0], self.wavelength[1], self.num_wavelengths)
+        else:
+            wavelengths = np.array([self.wavelength])
+
+        # write files in module directory
+        module_dir = self._module_dir
+        orig_dir = os.getcwd()
+        os.chdir(module_dir)
+        
+        # choose file names
+        if wavelengths.size == 1:
+            output_name = 'mstm_out1_' + str(int(1000*wavelengths[0])) +'.dat'
+            output_name_wl = 'mstm_out_'  + str(int(1000*wavelengths[0])) + '.dat'
+            input_name = 'mstm_' + str(int(1000*wavelengths[0])) + '.inp'
+            angle_filename = 'angles_'+ str(int(1000*wavelengths[0])) + '.dat'
+            tm_output_name = 'tm_default_'  + str(int(1000*wavelengths[0])) + '.dat'
+        else:
+            output_name = 'mstm_out1.dat'
+            output_name_wl = 'mstm_out.dat'
+            input_name = 'mstm.inp'
+            angle_filename = 'angles.dat'
+            tm_output_name = 'tm_default.dat'
+
+        for i in range(wavelengths.size):
+            # read output file and write to wavelength output file
             with open(os.path.join(module_dir, output_name)) as f1:
-                with open(os.path.join(module_dir, 'mstm_out.dat'), 'a') as f:
+                with open(os.path.join(module_dir, output_name_wl), 'a') as f:
                     for line in f1:
                             f.write(line)
 
         # Read from results file
-        result = MSTMResult(os.path.join(module_dir, 'mstm_out.dat'), self)
+        result = MSTMResult(os.path.join(module_dir, output_name_wl), self)
 
         # delete temp files and change back to original directory
         os.chdir(orig_dir)
         if delete:
-            os.remove(os.path.join(module_dir, 'mstm_out.dat'))
-            os.remove(os.path.join(module_dir, 'mstm_out1.dat'))
-            os.remove(os.path.join(module_dir, 'mstm.inp'))
-            os.remove(os.path.join(module_dir, 'angles.dat'))
-            if os.path.exists(os.path.join(module_dir, 'tm_default.dat')):
-                os.remove(os.path.join(module_dir, 'tm_default.dat'))
-
+            os.remove(os.path.join(module_dir, output_name_wl))
+            os.remove(os.path.join(module_dir, output_name))
+            os.remove(os.path.join(module_dir, input_name))
+            os.remove(os.path.join(module_dir, angle_filename))
+            if os.path.exists(os.path.join(module_dir, tm_output_name)):
+                os.remove(os.path.join(module_dir, tm_output_name))
         return result
 
 
@@ -440,6 +596,7 @@ class MSTMResult:
         
         if (self.mstm_calculation.azimuthal_average is True or
                 self.mstm_calculation.fixed is False):
+                    # if using random orientation averaging
                     phase_func = np.zeros((self.mstm_calculation.num_wavelengths,
                                            len(self.mstm_calculation.theta)))
         else:   
@@ -454,9 +611,9 @@ class MSTMResult:
 
             if (self.mstm_calculation.azimuthal_average is True or
                 self.mstm_calculation.fixed is False):
-                phase_func[i,:]= S11/np.sum(S11)
+                phase_func[i,:]= S11
             else:
-                phase_func[i,:,:]= S11/np.sum(S11)
+                phase_func[i,:,:]= S11
                 
         return phase_func
         
@@ -514,6 +671,30 @@ class MSTMResult:
         vm_radius = self.mstm_calculation.target.volmean_radius()
         R = self.calc_cross_section(stokes, 90, 180)/(np.pi*vm_radius**2)
         return R
+        
+    def calc_forward_scattering(self, stokes=np.array([1, 0, 0, 0])):
+        """
+        Calculation of the forward scattering as a function of wavelength.
+        Valid only for assemblies where the volume mean radius is greater than 
+        the incident wavelength
+
+        Parameters
+        ----------
+        stokes: stokes vector of incident light (optional)
+
+        Returns
+        -------
+        T_scat: numpy array
+        Forward scattering fraction as a function of wavelength
+
+        Notes
+        -----
+        See page 122 of Bohren-Huffman for derivation of formula
+
+        """
+        vm_radius = self.mstm_calculation.target.volmean_radius()
+        T_scat = self.calc_cross_section(stokes, 0, 90)/(np.pi*vm_radius**2)
+        return T_scat
 
 class Target:
     """
